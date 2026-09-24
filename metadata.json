@@ -1,0 +1,6 @@
+{
+  "name": "info.barkasmajalengka - Formulir Titip Jual",
+  "description": "Formulir titip jual barang bekas (consignment) berkualitas untuk platform info.barkasmajalengka, responsif dan terintegrasi WhatsApp & Google Forms.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
