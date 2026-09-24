@@ -1,4 +1,4 @@
-import { ConsignmentItem } from '../types/consignment';
+import { ConsignmentItem, ADMIN_CONTACT } from '../types/consignment';
 import { formatRupiah, calculateListingEstimates, normalizeWhatsAppNumber } from './formatters';
 
 /**
@@ -79,7 +79,7 @@ export const generatePenitipConfirmationWhatsAppUrl = (item: ConsignmentItem): s
   const estimates = calculateListingEstimates(item.nettPrice);
   const cleanPenitipPhone = normalizeWhatsAppNumber(item.whatsappNumber);
 
-  const message = `Halo Kak *${item.fullName}*, salam dari Admin *info.barkasmajalengka*! 👋
+  const message = `Halo Kak *${item.fullName}*, salam dari Admin Esteh (*info.barkasmajalengka*)! 👋
 
 Kabar baik, barang titip jual Anda telah selesai melalui tahap verifikasi & kurasi kami:
 
@@ -92,7 +92,11 @@ Kabar baik, barang titip jual Anda telah selesai melalui tahap verifikasi & kura
 
 Kami akan segera mengabarkan jika barang Anda sudah laku terjual. Nominal bersih Anda dijamin 100% utuh tanpa potongan biaya di muka.
 
-Terima kasih atas kepercayaannya menitipkan barang di *info.barkasmajalengka*! 🙏✨`;
+Terima kasih atas kepercayaannya menitipkan barang di *info.barkasmajalengka*!
+
+Salam hangat,
+*Admin Esteh* - info.barkasmajalengka
+📲 WhatsApp Resmi: ${ADMIN_CONTACT.whatsappFormatted} (${ADMIN_CONTACT.whatsappRaw}) 🙏✨`;
 
   return `https://wa.me/${cleanPenitipPhone}?text=${encodeURIComponent(message)}`;
 };

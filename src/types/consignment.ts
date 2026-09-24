@@ -53,6 +53,14 @@ export interface ConsignmentItem {
   googleFormId?: string;
 }
 
+export const ADMIN_CONTACT = {
+  name: 'Admin Esteh',
+  whatsappRaw: '085179550150',
+  whatsappFormatted: '0851-7955-0150',
+  whatsappInternational: '6285179550150',
+  instagram: '@info.barkasmajalengka',
+} as const;
+
 export const KECAMATAN_MAJALENGKA = [
   'Majalengka',
   'Kadipaten',

@@ -50,6 +50,7 @@ export const ContentOutputCard: React.FC<ContentOutputCardProps> = ({
 }) => {
   const [captionTab, setCaptionTab] = useState<'feed' | 'story'>('feed');
   const [isCopied, setIsCopied] = useState(false);
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 
   const estimates = calculateListingEstimates(item.nettPrice);
   const tenor = getTenorTimeline(item.createdAt);
@@ -125,17 +126,38 @@ export const ContentOutputCard: React.FC<ContentOutputCardProps> = ({
             })}
           </div>
 
-          <button
-            onClick={() => {
-              if (confirm(`Hapus item ${item.id} (${item.itemNameAndBrand})?`)) {
-                onDelete(item.id);
-              }
-            }}
-            className="p-1.5 rounded-lg text-white/60 hover:text-rose-400 hover:bg-white/10 transition-colors ml-1 cursor-pointer"
-            title="Hapus data"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+          {isConfirmingDelete ? (
+            <div className="flex items-center gap-1.5 bg-rose-600/90 text-white px-2.5 py-1 rounded-xl text-xs border border-rose-300/40 shadow-sm animate-in fade-in">
+              <span className="text-[11px] font-semibold text-white">Yakin hapus?</span>
+              <button
+                type="button"
+                onClick={() => {
+                  onDelete(item.id);
+                  setIsConfirmingDelete(false);
+                }}
+                className="px-2 py-0.5 bg-white text-rose-700 font-bold rounded-md hover:bg-rose-50 text-[11px] cursor-pointer shadow-xs"
+              >
+                Hapus
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsConfirmingDelete(false)}
+                className="px-2 py-0.5 bg-black/20 hover:bg-black/30 text-white rounded-md text-[11px] cursor-pointer"
+              >
+                Batal
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setIsConfirmingDelete(true)}
+              className="p-1.5 rounded-lg text-white/60 hover:text-rose-400 hover:bg-white/10 transition-colors ml-1 cursor-pointer flex items-center gap-1"
+              title="Hapus pengajuan ini"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span className="text-[11px] hidden sm:inline text-white/60 hover:text-rose-300">Hapus</span>
+            </button>
+          )}
         </div>
       </div>
 

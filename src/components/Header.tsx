@@ -1,5 +1,6 @@
 import React from 'react';
-import { Sparkles, HelpCircle, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { Sparkles, HelpCircle, ShieldCheck, CheckCircle2, MessageCircle } from 'lucide-react';
+import { ADMIN_CONTACT } from '../types/consignment';
 
 interface HeaderProps {
   onOpenFAQ: () => void;
@@ -24,6 +25,17 @@ export const Header: React.FC<HeaderProps> = ({ onOpenFAQ }) => {
           </div>
 
           <div className="flex items-center gap-2">
+            <a
+              href={`https://wa.me/${ADMIN_CONTACT.whatsappInternational}?text=${encodeURIComponent('Halo Admin Esteh, saya ingin tanya seputar titip jual di info.barkasmajalengka.')}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/25 hover:bg-emerald-500/35 text-emerald-200 border border-emerald-400/40 transition-all text-xs font-semibold"
+              title="Hubungi Admin Esteh via WhatsApp"
+            >
+              <MessageCircle className="w-3.5 h-3.5 text-emerald-300" />
+              <span>WA Admin Esteh ({ADMIN_CONTACT.whatsappFormatted})</span>
+            </a>
+
             <button
               onClick={onOpenFAQ}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white/95 border border-white/20 transition-all text-xs font-semibold cursor-pointer"

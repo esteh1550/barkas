@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import { ConsignmentItem } from '../types/consignment';
+import { ConsignmentItem, ADMIN_CONTACT } from '../types/consignment';
 import { formatRupiah, calculateListingEstimates, getTenorTimeline } from './formatters';
 import { generateTicketQRCode } from './qrCode';
 
@@ -215,7 +215,7 @@ export const generateConsignmentPDF = async (item: ConsignmentItem): Promise<voi
   doc.setFontSize(7);
   doc.setTextColor(148, 163, 184);
   doc.text(
-    `Dokumen Digital Diterbitkan oleh info.barkasmajalengka • ID Tiket: ${item.id} • Cetak: ${new Date().toLocaleDateString('id-ID')}`,
+    `Dokumen Digital info.barkasmajalengka • Pengelola: ${ADMIN_CONTACT.name} (WA: ${ADMIN_CONTACT.whatsappFormatted}) • ID: ${item.id} • Cetak: ${new Date().toLocaleDateString('id-ID')}`,
     margin,
     288
   );

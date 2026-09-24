@@ -43,6 +43,7 @@ export const SubmissionsListModal: React.FC<SubmissionsListModalProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [selectedStatusTab, setSelectedStatusTab] = useState<string>('ALL');
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   const [copiedAll, setCopiedAll] = useState(false);
   const [qrModalItem, setQrModalItem] = useState<ConsignmentItem | null>(null);
   const [generatingPdfId, setGeneratingPdfId] = useState<string | null>(null);
@@ -436,17 +437,37 @@ export const SubmissionsListModal: React.FC<SubmissionsListModalProps> = ({
                           <option value="Selesai & Dicairkan">🎉 Selesai & Dicairkan</option>
                         </select>
 
-                        <button
-                          onClick={() => {
-                            if (confirm(`Hapus data tiket ${item.id} dari arsip?`)) {
-                              onDeleteSubmission(item.id);
-                            }
-                          }}
-                          className="p-1 text-slate-400 hover:text-rose-600 rounded-md hover:bg-rose-50 transition-colors cursor-pointer"
-                          title="Hapus data"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {confirmingDeleteId === item.id ? (
+                          <div className="flex items-center gap-1 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded-lg text-[11px]">
+                            <span className="text-rose-700 font-semibold">Hapus?</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onDeleteSubmission(item.id);
+                                setConfirmingDeleteId(null);
+                              }}
+                              className="px-1.5 py-0.5 bg-rose-600 text-white rounded font-bold text-[10px] hover:bg-rose-700 cursor-pointer"
+                            >
+                              Ya
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmingDeleteId(null)}
+                              className="px-1 py-0.5 text-slate-500 hover:text-slate-700 rounded text-[10px] cursor-pointer"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setConfirmingDeleteId(item.id)}
+                            className="p-1 text-slate-400 hover:text-rose-600 rounded-md hover:bg-rose-50 transition-colors cursor-pointer"
+                            title="Hapus data"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     </div>
 

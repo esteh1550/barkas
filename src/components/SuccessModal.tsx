@@ -206,11 +206,18 @@ Rekening: ${item.bankAccount}`;
               href={waUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="w-full flex items-center justify-center gap-2 px-5 py-3.5 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-bold text-sm sm:text-base rounded-2xl shadow-lg shadow-emerald-600/25 transition-all group"
+              className="w-full flex items-center justify-between gap-3 px-5 py-3.5 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-bold text-sm sm:text-base rounded-2xl shadow-lg shadow-emerald-600/25 transition-all group"
             >
-              <MessageCircle className="w-5 h-5 fill-white/20 text-white shrink-0 group-hover:scale-110 transition-transform" />
-              <span>Lanjut Konfirmasi ke WhatsApp Admin</span>
-              <ArrowRight className="w-4 h-4 ml-auto" />
+              <div className="flex items-center gap-2.5 text-left">
+                <MessageCircle className="w-5 h-5 fill-white/20 text-white shrink-0 group-hover:scale-110 transition-transform" />
+                <div>
+                  <span className="block leading-tight">Konfirmasi ke WhatsApp Admin Esteh</span>
+                  <span className="text-[11px] font-normal text-emerald-100 block">
+                    No. Resmi: 0851-7955-0150 (Langsung terhubung)
+                  </span>
+                </div>
+              </div>
+              <ArrowRight className="w-4 h-4 shrink-0 text-emerald-200 group-hover:translate-x-1 transition-transform" />
             </a>
 
             {/* Official PDF Download Button */}

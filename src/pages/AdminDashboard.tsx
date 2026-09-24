@@ -31,7 +31,7 @@ import {
   Sparkles,
   PlusCircle
 } from 'lucide-react';
-import { ConsignmentItem, SubmissionStatus, AdminPostStatus } from '../types/consignment';
+import { ConsignmentItem, SubmissionStatus, AdminPostStatus, ADMIN_CONTACT } from '../types/consignment';
 import { 
   formatRupiah, 
   generateAdminWhatsAppUrl, 
@@ -100,6 +100,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [isGoogleModalOpen, setIsGoogleModalOpen] = useState(false);
   const [generatingPdfId, setGeneratingPdfId] = useState<string | null>(null);
   const [copiedAll, setCopiedAll] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<ConsignmentItem | null>(null);
+  const [deleteNotification, setDeleteNotification] = useState<string | null>(null);
+
+  const handleConfirmDelete = () => {
+    if (!itemToDelete) return;
+    const targetId = itemToDelete.id;
+    const targetName = itemToDelete.itemNameAndBrand;
+    onDeleteSubmission(targetId);
+    setItemToDelete(null);
+    setDeleteNotification(`Pengajuan ${targetId} (${targetName}) berhasil dihapus.`);
+    setTimeout(() => setDeleteNotification(null), 3500);
+  };
 
   const handleLoadDemoItem = () => {
     if (!onAddSampleItem) return;
@@ -392,11 +404,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 B
               </div>
               <div>
-                <h1 className="font-extrabold text-sm sm:text-base leading-tight">
-                  Panel Pengelola /admin
-                </h1>
+                <div className="flex items-center gap-1.5">
+                  <h1 className="font-extrabold text-sm sm:text-base leading-tight">
+                    Panel Pengelola /admin
+                  </h1>
+                  <span className="px-2 py-0.5 rounded-full bg-amber-400 text-[#1B365D] text-[10px] font-black uppercase tracking-wider">
+                    {ADMIN_CONTACT.name}
+                  </span>
+                </div>
                 <p className="text-[11px] text-amber-200/90 hidden sm:block">
-                  info.barkasmajalengka Consignment Hub
+                  info.barkasmajalengka Consignment Hub • WA: {ADMIN_CONTACT.whatsappFormatted}
                 </p>
               </div>
             </div>
@@ -498,8 +515,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <Phone className="w-4 h-4" />
             </div>
             <div>
-              <span className="text-slate-400 block text-[11px]">Nomor WhatsApp Admin Penerima Notifikasi:</span>
-              <strong className="text-slate-800 text-sm font-mono">+{adminWhatsAppNumber}</strong>
+              <span className="text-slate-400 block text-[11px]">Nomor WhatsApp Resmi Admin Pengelola:</span>
+              <div className="flex items-center gap-2">
+                <strong className="text-slate-800 text-sm font-mono">+{adminWhatsAppNumber}</strong>
+                <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 text-[10px] font-bold">
+                  {ADMIN_CONTACT.name} ({ADMIN_CONTACT.whatsappFormatted})
+                </span>
+              </div>
             </div>
           </div>
 
@@ -805,7 +827,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       }
                     }}
                     onUpdateGeneralStatus={onUpdateStatus}
-                    onDelete={onDeleteSubmission}
+                    onDelete={(id) => {
+                      const itm = submissions.find((s) => s.id === id);
+                      onDeleteSubmission(id);
+                      setDeleteNotification(`Pengajuan ${id} ${itm ? `(${itm.itemNameAndBrand})` : ''} berhasil dihapus.`);
+                      setTimeout(() => setDeleteNotification(null), 3500);
+                    }}
                     onOpenQR={(item) => setQrModalItem(item)}
                     onDownloadPDF={handleDownloadSinglePDF}
                   />
@@ -889,11 +916,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </select>
 
                         <button
-                          onClick={() => {
-                            if (confirm(`Hapus pengajuan ${item.id} (${item.itemNameAndBrand})?`)) {
-                              onDeleteSubmission(item.id);
-                            }
-                          }}
+                          type="button"
+                          onClick={() => setItemToDelete(item)}
                           className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
                           title="Hapus Pengajuan"
                         >
@@ -1024,6 +1048,50 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         </div>
       </main>
+
+      {/* Toast Notification */}
+      {deleteNotification && (
+        <div className="fixed bottom-5 right-5 z-50 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 text-xs animate-in slide-in-from-bottom duration-200 border border-slate-700">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>{deleteNotification}</span>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal (Replaces window.confirm) */}
+      {itemToDelete && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 text-center animate-in fade-in zoom-in-95 duration-150">
+            <div className="w-14 h-14 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-4">
+              <Trash2 className="w-7 h-7" />
+            </div>
+            <h3 className="text-lg font-extrabold text-slate-800">
+              Hapus Data Pengajuan?
+            </h3>
+            <p className="text-xs text-slate-600 mt-2 leading-relaxed">
+              Anda akan menghapus tiket <strong>{itemToDelete.id}</strong> (<strong>{itemToDelete.itemNameAndBrand}</strong>) milik <strong>{itemToDelete.fullName}</strong>.
+            </p>
+            <p className="text-[11px] text-rose-600 bg-rose-50 rounded-xl p-2 mt-3 font-medium">
+              ⚠️ Tindakan ini permanen dan data pengajuan akan dihapus dari sistem.
+            </p>
+            <div className="mt-5 flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => setItemToDelete(null)}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 font-semibold text-xs cursor-pointer transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-bold text-xs shadow-lg shadow-rose-600/25 cursor-pointer transition-all"
+              >
+                Ya, Hapus Sekarang
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* QR Code Modal */}
       <TicketQRCodeModal

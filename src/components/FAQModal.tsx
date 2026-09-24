@@ -9,8 +9,10 @@ import {
   CheckCircle2, 
   AlertTriangle, 
   ArrowDownCircle, 
-  RotateCcw 
+  RotateCcw,
+  MessageCircle
 } from 'lucide-react';
+import { ADMIN_CONTACT } from '../types/consignment';
 
 interface FAQModalProps {
   isOpen: boolean;
@@ -178,6 +180,27 @@ export const FAQModal: React.FC<FAQModalProps> = ({ isOpen, onClose }) => {
                 </span>
               </div>
             </div>
+          </div>
+
+          {/* CONTACT ADMIN ESTEH */}
+          <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <span className="text-xs font-bold text-amber-900 block">
+                Punya Pertanyaan Langsung ke Pengelola?
+              </span>
+              <p className="text-[11px] text-amber-800/90 mt-0.5">
+                Konsultasikan barang Anda langsung ke <strong>{ADMIN_CONTACT.name}</strong> di nomor resmi <strong>{ADMIN_CONTACT.whatsappFormatted}</strong>.
+              </p>
+            </div>
+            <a
+              href={`https://wa.me/${ADMIN_CONTACT.whatsappInternational}?text=${encodeURIComponent(`Halo ${ADMIN_CONTACT.name} (*info.barkasmajalengka*), saya ingin konsultasi mengenai ketentuan titip jual barang saya.`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition-all shrink-0"
+            >
+              <MessageCircle className="w-4 h-4 fill-white/20" />
+              <span>Chat {ADMIN_CONTACT.name}</span>
+            </a>
           </div>
         </div>
 

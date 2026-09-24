@@ -1,4 +1,4 @@
-import { ConsignmentItem } from '../types/consignment';
+import { ConsignmentItem, ADMIN_CONTACT } from '../types/consignment';
 
 /**
  * Format number to Indonesian Rupiah representation
@@ -133,11 +133,11 @@ export const getTenorTimeline = (createdAt: string) => {
  */
 export const generateAdminWhatsAppUrl = (
   item: ConsignmentItem,
-  adminPhone: string = '6285224000100'
+  adminPhone: string = ADMIN_CONTACT.whatsappInternational
 ): string => {
   const estimates = calculateListingEstimates(item.nettPrice);
 
-  const text = `Halo Admin *info.barkasmajalengka*, saya ingin mengajukan titip jual barang bekas:
+  const text = `Halo Admin Esteh (*info.barkasmajalengka*), saya ingin mengajukan titip jual barang bekas:
 
 🎫 *KODE TIKET: ${item.id}*
 📅 Diajukan: ${new Date(item.createdAt).toLocaleDateString('id-ID', { dateStyle: 'full' })}

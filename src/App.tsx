@@ -20,7 +20,8 @@ import {
   ArrowRight,
   ShieldAlert,
   Loader2,
-  Lock
+  Lock,
+  MessageCircle
 } from 'lucide-react';
 
 import { 
@@ -31,7 +32,8 @@ import {
   CATEGORIES, 
   CONDITIONS,
   SubmissionStatus,
-  AdminPostStatus
+  AdminPostStatus,
+  ADMIN_CONTACT
 } from './types/consignment';
 import { formatRupiah, parseRupiahInput, calculateListingEstimates } from './utils/formatters';
 import { Header } from './components/Header';
@@ -44,28 +46,42 @@ import { createConsignmentGoogleForm } from './services/googleForms';
 
 const STORAGE_KEY = 'barkas_majalengka_submissions';
 const ADMIN_PHONE_KEY = 'barkas_admin_whatsapp';
-const DEFAULT_ADMIN_PHONE = '6285224000100';
+const DEFAULT_ADMIN_PHONE = ADMIN_CONTACT.whatsappInternational;
+
+// Helper to determine if current URL targets admin
+const isTargetingAdmin = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  const path = window.location.pathname.toLowerCase();
+  const hash = window.location.hash.toLowerCase();
+  const search = new URLSearchParams(window.location.search);
+
+  return (
+    path === '/admin' ||
+    path.startsWith('/admin') ||
+    hash === '#/admin' ||
+    hash === '#admin' ||
+    hash.startsWith('#/admin') ||
+    search.get('page') === 'admin' ||
+    search.get('admin') === 'true'
+  );
+};
 
 export default function App() {
   // Navigation Route State (/ or /admin)
   const [currentPath, setCurrentPath] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      if (window.location.pathname.startsWith('/admin') || window.location.hash === '#/admin') {
-        return '/admin';
-      }
-    }
-    return '/';
+    return isTargetingAdmin() ? '/admin' : '/';
   });
 
-  // Listen to browser URL changes
+  // Listen to browser URL changes (pathname, hash, popstate)
   useEffect(() => {
     const handleLocationChange = () => {
-      if (window.location.pathname.startsWith('/admin') || window.location.hash === '#/admin') {
+      if (isTargetingAdmin()) {
         setCurrentPath('/admin');
       } else {
         setCurrentPath('/');
       }
     };
+
     window.addEventListener('popstate', handleLocationChange);
     window.addEventListener('hashchange', handleLocationChange);
     return () => {
@@ -75,7 +91,19 @@ export default function App() {
   }, []);
 
   const navigateTo = (path: string) => {
-    window.history.pushState({}, '', path);
+    try {
+      window.history.pushState({}, '', path);
+    } catch {
+      // fallback for environments where pushState might fail
+    }
+    // Also set hash for universal static hosting compatibility (e.g. Vercel / GitHub Pages)
+    if (path.startsWith('/admin')) {
+      window.location.hash = '/admin';
+    } else {
+      if (window.location.hash.startsWith('#/admin') || window.location.hash === '#admin') {
+        window.location.hash = '';
+      }
+    }
     setCurrentPath(path);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -102,7 +130,7 @@ export default function App() {
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [isFAQOpen, setIsFAQOpen] = useState(false);
   
-  const [adminPhone, setAdminPhone] = useState(DEFAULT_ADMIN_PHONE);
+  const [adminPhone, setAdminPhone] = useState<string>(DEFAULT_ADMIN_PHONE);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -119,8 +147,11 @@ export default function App() {
         setSubmissions(JSON.parse(savedSubmissions));
       }
       const savedAdmin = localStorage.getItem(ADMIN_PHONE_KEY);
-      if (savedAdmin) {
+      if (savedAdmin && savedAdmin !== '6285224000100') {
         setAdminPhone(savedAdmin);
+      } else {
+        setAdminPhone(DEFAULT_ADMIN_PHONE);
+        localStorage.setItem(ADMIN_PHONE_KEY, DEFAULT_ADMIN_PHONE);
       }
     } catch (e) {
       console.warn('Failed to load local storage:', e);
@@ -855,7 +886,7 @@ export default function App() {
               )}
             </button>
             <p className="text-[11px] text-center text-slate-400 mt-2">
-              Setelah tombol ditekan, Anda akan mendapatkan <strong>Kode Tiket Titip Jual</strong> dan tombol langsung ke WhatsApp Admin info.barkasmajalengka.
+              Setelah tombol ditekan, Anda akan mendapatkan <strong>Kode Tiket Titip Jual</strong> dan tombol langsung ke WhatsApp <strong>Admin Esteh ({ADMIN_CONTACT.whatsappFormatted})</strong>.
             </p>
           </div>
         </form>
@@ -863,24 +894,40 @@ export default function App() {
 
       {/* Footer Branding & Discreet Admin Link */}
       <footer className="mt-auto border-t border-slate-200 bg-white py-6 text-center text-xs text-slate-400">
-        <div className="max-w-3xl mx-auto px-4 space-y-2">
+        <div className="max-w-3xl mx-auto px-4 space-y-2.5">
           <p className="font-bold text-[#1B365D]">
             info.barkasmajalengka © {new Date().getFullYear()}
           </p>
           <p className="text-[11px]">
             Platform Kurasi & Titip Jual Barang Bekas Berkualitas Majalengka — Transparan, Amanah, Cepat Laku.
           </p>
+          <p className="text-[11px] text-slate-500">
+            Layanan Pelanggan & Konsultasi: <strong>{ADMIN_CONTACT.name}</strong> •{' '}
+            <a
+              href={`https://wa.me/${ADMIN_CONTACT.whatsappInternational}?text=${encodeURIComponent('Halo Admin Esteh, saya ingin konsultasi seputar titip jual di info.barkasmajalengka.')}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-emerald-600 hover:text-emerald-700 font-semibold underline inline-flex items-center gap-1"
+            >
+              <MessageCircle className="w-3 h-3" />
+              <span>WhatsApp {ADMIN_CONTACT.whatsappFormatted}</span>
+            </a>
+          </p>
 
-          {/* Discreet Admin Area Portal */}
-          <div className="pt-2">
-            <button
-              type="button"
-              onClick={() => navigateTo('/admin')}
+          {/* Discreet Admin Area Portal (With Hash fallback for Vercel/Static hosting) */}
+          <div className="pt-2 flex items-center justify-center gap-3">
+            <a
+              href="#/admin"
+              onClick={(e) => {
+                e.preventDefault();
+                navigateTo('/admin');
+              }}
               className="inline-flex items-center gap-1.5 text-[11px] text-slate-400 hover:text-[#1B365D] font-medium transition-colors cursor-pointer hover:underline"
+              title="Panel Khusus Admin Pengelola"
             >
               <Lock className="w-3 h-3" />
               <span>Login Pengelola (/admin)</span>
-            </button>
+            </a>
           </div>
         </div>
       </footer>
