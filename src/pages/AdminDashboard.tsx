@@ -56,6 +56,7 @@ import { AdminPriorityActionCenter } from '../components/AdminPriorityActionCent
 import { DailyStockBroadcastModal } from '../components/DailyStockBroadcastModal';
 import { BuyerInvoiceModal } from '../components/BuyerInvoiceModal';
 import { AdminQuickScannerModal } from '../components/AdminQuickScannerModal';
+import { AdminQRVerifyDetailModal } from '../components/AdminQRVerifyDetailModal';
 
 interface AdminDashboardProps {
   submissions: ConsignmentItem[];
@@ -119,6 +120,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [isBroadcastModalOpen, setIsBroadcastModalOpen] = useState(false);
   const [payoutModalItem, setPayoutModalItem] = useState<ConsignmentItem | null>(null);
   const [buyerInvoiceItem, setBuyerInvoiceItem] = useState<ConsignmentItem | null>(null);
+  const [verifyDetailItem, setVerifyDetailItem] = useState<ConsignmentItem | null>(null);
+  const [pendingVerifyTicketId, setPendingVerifyTicketId] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const params = new URLSearchParams(window.location.search);
+    return params.get('verify') || params.get('ticket') || null;
+  });
   const [editPriceItem, setEditPriceItem] = useState<ConsignmentItem | null>(null);
   const [isFinancialModalOpen, setIsFinancialModalOpen] = useState(false);
   const [isGoogleModalOpen, setIsGoogleModalOpen] = useState(false);
@@ -132,6 +139,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setDeleteNotification(message);
     setTimeout(() => setDeleteNotification(null), 3500);
   };
+
+  // Automatically open AdminQRVerifyDetailModal when ?verify=BM-2026-XXXX is scanned from HP camera
+  useEffect(() => {
+    if (!isAuthenticated || !pendingVerifyTicketId || submissions.length === 0) return;
+    const cleanTarget = pendingVerifyTicketId.trim().replace(/^#/, '').toUpperCase();
+    const matched = submissions.find(
+      (s) => s.id.replace(/^#/, '').toUpperCase() === cleanTarget
+    );
+    if (matched) {
+      setVerifyDetailItem(matched);
+      setPendingVerifyTicketId(null);
+      if (typeof window !== 'undefined' && window.history?.replaceState) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('verify');
+        url.searchParams.delete('ticket');
+        window.history.replaceState({}, '', url.pathname + url.search);
+      }
+    }
+  }, [isAuthenticated, pendingVerifyTicketId, submissions]);
+
+  // Keep verifyDetailItem synced when status or price updates
+  useEffect(() => {
+    if (!verifyDetailItem) return;
+    const updated = submissions.find((s) => s.id === verifyDetailItem.id);
+    if (updated) {
+      setVerifyDetailItem(updated);
+    }
+  }, [submissions, verifyDetailItem]);
 
   const handleConfirmDelete = () => {
     if (!itemToDelete) return;
@@ -225,7 +260,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         sessionStorage.setItem(ADMIN_PIN_STORAGE_KEY, 'true');
       }
     } catch (err: any) {
-      setPinError('Login Google dibatalkan atau gagal. Silakan gunakan PIN Admin.');
+      const msg = String(err?.message || err?.code || '');
+      if (err?.code === 'auth/unauthorized-domain' || msg.includes('auth/unauthorized-domain')) {
+        const host = typeof window !== 'undefined' ? window.location.hostname : 'domain ini';
+        setPinError(
+          `Domain "${host}" belum terdaftar di Firebase Authorized Domains. Gunakan PIN Admin (default: barkas2026) atau tambahkan "${host}" di Firebase Console -> Authentication -> Settings -> Authorized domains.`
+        );
+      } else {
+        setPinError('Login Google dibatalkan atau gagal. Silakan gunakan PIN Admin.');
+      }
     } finally {
       setIsGoogleSigningIn(false);
     }
@@ -368,6 +411,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <p className="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed">
               Data penitip dan informasi barang bersifat rahasia. Silakan autentikasi untuk mengakses panel <strong>/admin</strong> info.barkasmajalengka.
             </p>
+            {pendingVerifyTicketId && (
+              <div className="mt-2 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-semibold">
+                📱 Pemindaian QR Terdeteksi: Tiket <span className="font-mono font-extrabold">#{pendingVerifyTicketId.replace(/^#/, '')}</span>. Masukkan PIN Admin untuk membuka rincian verifikasi barang.
+              </div>
+            )}
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
@@ -1275,6 +1323,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         item={qrModalItem}
         isOpen={!!qrModalItem}
         onClose={() => setQrModalItem(null)}
+        onOpenVerifyDetail={(item) => setVerifyDetailItem(item)}
+      />
+
+      {/* QR Verification Detail Modal (Opened when scanning QR link with HP) */}
+      <AdminQRVerifyDetailModal
+        item={verifyDetailItem}
+        isOpen={!!verifyDetailItem}
+        onClose={() => setVerifyDetailItem(null)}
+        onUpdateStatus={onUpdateStatus}
+        onOpenQRModal={(item) => setQrModalItem(item)}
+        onOpenBuyerInvoice={(item) => setBuyerInvoiceItem(item)}
+        onOpenPayoutReceipt={(item) => setPayoutModalItem(item)}
+        onDownloadPDF={handleDownloadSinglePDF}
       />
 
       {/* Camera & Image QR Scanner Modal */}

@@ -2,29 +2,45 @@ import QRCode from 'qrcode';
 import { ConsignmentItem } from '../types/consignment';
 
 /**
- * Generate QR code data URL for a consignment item
+ * Clean ticket ID without leading '#'
  */
-export const generateTicketQRCode = async (item: ConsignmentItem): Promise<string> => {
-  try {
-    // Structured verification string for admin scanner
-    const qrPayload = JSON.stringify({
-      app: 'info.barkasmajalengka',
-      ticket: item.id,
-      penitip: item.fullName,
-      wa: item.whatsappNumber,
-      kecamatan: item.kecamatan,
-      barang: item.itemNameAndBrand,
-      size: item.size || '-',
-      kondisi: item.condition,
-      hargaNett: item.nettPrice,
-      rekening: item.bankAccount,
-      tgl: item.createdAt,
-    });
+export const cleanTicketCode = (ticketId: string): string => {
+  return ticketId.trim().replace(/^#/, '');
+};
 
-    return await QRCode.toDataURL(qrPayload, {
+/**
+ * Generate a direct URL link to item verification detail so scanning with a phone camera
+ * opens the item verification page directly in AdminDashboard (or public catalog).
+ */
+export const getTicketVerificationUrl = (
+  ticketId: string,
+  mode: 'admin' | 'public' = 'admin'
+): string => {
+  const origin =
+    typeof window !== 'undefined' && window.location?.origin
+      ? window.location.origin
+      : 'https://barkas-two.vercel.app';
+  const cleanId = cleanTicketCode(ticketId);
+  if (mode === 'public') {
+    return `${origin}/?ticket=${encodeURIComponent(cleanId)}`;
+  }
+  return `${origin}/admin?verify=${encodeURIComponent(cleanId)}`;
+};
+
+/**
+ * Generate QR code data URL for a consignment item containing the direct verification link
+ */
+export const generateTicketQRCode = async (
+  item: ConsignmentItem,
+  mode: 'admin' | 'public' = 'admin'
+): Promise<string> => {
+  try {
+    const verificationUrl = getTicketVerificationUrl(item.id, mode);
+
+    return await QRCode.toDataURL(verificationUrl, {
       errorCorrectionLevel: 'M',
       margin: 2,
-      width: 280,
+      width: 320,
       color: {
         dark: '#1B365D',
         light: '#FFFFFF',
