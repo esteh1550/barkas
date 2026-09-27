@@ -1,13 +1,126 @@
 @import "tailwindcss";
 
+:root,
+[data-theme="forest"] {
+  --brand-primary: #0F291E;
+  --brand-primary-hover: #183F2E;
+  --brand-accent: #D97706;
+  --bg-canvas: #F6F3EC;
+  --bg-surface: #FFFFFF;
+  --bg-muted: #EFECE4;
+  --text-main: #1C1917;
+  --border-card: #E2DDD2;
+}
+
+[data-theme="terracotta"] {
+  --brand-primary: #431407;
+  --brand-primary-hover: #65200B;
+  --brand-accent: #EA580C;
+  --bg-canvas: #FAF4EE;
+  --bg-surface: #FFFFFF;
+  --bg-muted: #F3E9DF;
+  --text-main: #291D18;
+  --border-card: #E6D5C5;
+}
+
+[data-theme="obsidian"] {
+  --brand-primary: #111827;
+  --brand-primary-hover: #1F2937;
+  --brand-accent: #F59E0B;
+  --bg-canvas: #0B0F17;
+  --bg-surface: #151C28;
+  --bg-muted: #1E293B;
+  --text-main: #F1F5F9;
+  --border-card: #2A364B;
+}
+
+[data-theme="navy"] {
+  --brand-primary: #1B365D;
+  --brand-primary-hover: #24477A;
+  --brand-accent: #F59E0B;
+  --bg-canvas: #F8FAFC;
+  --bg-surface: #FFFFFF;
+  --bg-muted: #F1F5F9;
+  --text-main: #1E293B;
+  --border-card: #E2E8F0;
+}
+
 @layer base {
   body {
-    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: var(--bg-canvas);
+    color: var(--text-main);
+    transition: background-color 0.25s ease, color 0.25s ease;
   }
 }
 
 .font-serif-accent {
   font-family: 'Playfair Display', Georgia, serif;
+}
+
+/* Dynamic Theme Remapping across all components */
+.bg-\[\#1B365D\] {
+  background-color: var(--brand-primary) !important;
+}
+.hover\:bg-\[\#1B365D\]:hover,
+.hover\:bg-\[\#24477A\]:hover,
+.hover\:bg-\[\#152a4a\]:hover {
+  background-color: var(--brand-primary-hover) !important;
+}
+.text-\[\#1B365D\] {
+  color: var(--brand-primary) !important;
+}
+.border-\[\#1B365D\] {
+  border-color: var(--brand-primary) !important;
+}
+.bg-\[\#F8FAFC\] {
+  background-color: var(--bg-canvas) !important;
+}
+
+/* Obsidian Dark Mode Surface Adaptations */
+[data-theme="obsidian"] .bg-white {
+  background-color: #151C28 !important;
+  color: #F1F5F9;
+}
+[data-theme="obsidian"] .bg-slate-50,
+[data-theme="obsidian"] .bg-slate-100 {
+  background-color: #1E293B !important;
+  color: #E2E8F0;
+}
+[data-theme="obsidian"] .border-slate-200,
+[data-theme="obsidian"] .border-slate-300,
+[data-theme="obsidian"] .border-slate-100 {
+  border-color: #2A364B !important;
+}
+[data-theme="obsidian"] .text-slate-900,
+[data-theme="obsidian"] .text-slate-800,
+[data-theme="obsidian"] .text-slate-700 {
+  color: #F1F5F9 !important;
+}
+[data-theme="obsidian"] .text-slate-600,
+[data-theme="obsidian"] .text-slate-500 {
+  color: #94A3B8 !important;
+}
+[data-theme="obsidian"] .text-\[\#1B365D\] {
+  color: #FBBF24 !important;
+}
+[data-theme="obsidian"] .bg-amber-400 .text-\[\#1B365D\],
+[data-theme="obsidian"] button.bg-amber-400 {
+  color: #0F172A !important;
+}
+
+/* Warm Archival Card Borders for Forest & Terracotta */
+[data-theme="forest"] .border-slate-200 {
+  border-color: #E2DDD2 !important;
+}
+[data-theme="forest"] .bg-slate-50 {
+  background-color: #FAF8F4 !important;
+}
+[data-theme="terracotta"] .border-slate-200 {
+  border-color: #E6D5C5 !important;
+}
+[data-theme="terracotta"] .bg-slate-50 {
+  background-color: #FDF9F5 !important;
 }
 
 /* Custom scrollbars */
@@ -16,13 +129,12 @@
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: var(--bg-canvas);
 }
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #a8a29e;
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #78716c;
 }
-

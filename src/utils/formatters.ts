@@ -117,11 +117,14 @@ export const getTenorTimeline = (createdAt: string) => {
   const now = new Date();
   const diffTime = day30Date.getTime() - now.getTime();
   const remainingDays = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+  const elapsedMs = Math.max(0, now.getTime() - createdDate.getTime());
+  const elapsedDays = Math.max(1, Math.floor(elapsedMs / (1000 * 60 * 60 * 24)) + 1);
 
   return {
     createdDate,
     day20Date,
     day30Date,
+    elapsedDays,
     remainingDays,
     isPriceDropPeriod: now >= day20Date && now < day30Date,
     isExpired: now >= day30Date,

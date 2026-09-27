@@ -29,7 +29,9 @@ import {
   LayoutGrid,
   List,
   Sparkles,
-  PlusCircle
+  PlusCircle,
+  BarChart3,
+  TrendingDown
 } from 'lucide-react';
 import { ConsignmentItem, SubmissionStatus, AdminPostStatus, ADMIN_CONTACT } from '../types/consignment';
 import { 
@@ -40,14 +42,27 @@ import {
   normalizeWhatsAppNumber 
 } from '../utils/formatters';
 import { generateConsignmentPDF } from '../utils/pdfGenerator';
+import { generatePriceDropWhatsAppUrl } from '../utils/captionGenerator';
+import { googleSignIn } from '../services/googleAuth';
 import { TicketQRCodeModal } from '../components/TicketQRCodeModal';
 import { GoogleFormsModal } from '../components/GoogleFormsModal';
 import { ContentOutputCard } from '../components/ContentOutputCard';
+import { QRScannerModal } from '../components/QRScannerModal';
+import { PayoutReceiptModal } from '../components/PayoutReceiptModal';
+import { EditPriceModal } from '../components/EditPriceModal';
+import { FinancialAnalyticsModal } from '../components/FinancialAnalyticsModal';
+import { PWAInstallButton } from '../components/PWAInstallButton';
+import { AdminPriorityActionCenter } from '../components/AdminPriorityActionCenter';
+import { DailyStockBroadcastModal } from '../components/DailyStockBroadcastModal';
+import { BuyerInvoiceModal } from '../components/BuyerInvoiceModal';
+import { AdminQuickScannerModal } from '../components/AdminQuickScannerModal';
 
 interface AdminDashboardProps {
   submissions: ConsignmentItem[];
+  isFirebaseConnected?: boolean;
   onUpdateStatus: (id: string, newStatus: SubmissionStatus) => void;
   onUpdatePostStatus?: (id: string, newPostStatus: AdminPostStatus) => void;
+  onUpdatePrice?: (id: string, newNettPrice: number, previousNettPrice?: number) => Promise<void>;
   onDeleteSubmission: (id: string) => void;
   onAddSampleItem?: (sampleItem: ConsignmentItem) => void;
   adminWhatsAppNumber: string;
@@ -65,8 +80,10 @@ const DEFAULT_PIN = 'barkas2026';
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   submissions,
+  isFirebaseConnected = false,
   onUpdateStatus,
   onUpdatePostStatus,
+  onUpdatePrice,
   onDeleteSubmission,
   onAddSampleItem,
   adminWhatsAppNumber,
@@ -97,11 +114,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [selectedStatusTab, setSelectedStatusTab] = useState<string>('ALL');
   const [qrModalItem, setQrModalItem] = useState<ConsignmentItem | null>(null);
+  const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
+  const [isQuickScannerOpen, setIsQuickScannerOpen] = useState(false);
+  const [isBroadcastModalOpen, setIsBroadcastModalOpen] = useState(false);
+  const [payoutModalItem, setPayoutModalItem] = useState<ConsignmentItem | null>(null);
+  const [buyerInvoiceItem, setBuyerInvoiceItem] = useState<ConsignmentItem | null>(null);
+  const [editPriceItem, setEditPriceItem] = useState<ConsignmentItem | null>(null);
+  const [isFinancialModalOpen, setIsFinancialModalOpen] = useState(false);
   const [isGoogleModalOpen, setIsGoogleModalOpen] = useState(false);
   const [generatingPdfId, setGeneratingPdfId] = useState<string | null>(null);
   const [copiedAll, setCopiedAll] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<ConsignmentItem | null>(null);
   const [deleteNotification, setDeleteNotification] = useState<string | null>(null);
+  const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
+
+  const showToast = (message: string) => {
+    setDeleteNotification(message);
+    setTimeout(() => setDeleteNotification(null), 3500);
+  };
 
   const handleConfirmDelete = () => {
     if (!itemToDelete) return;
@@ -109,8 +139,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const targetName = itemToDelete.itemNameAndBrand;
     onDeleteSubmission(targetId);
     setItemToDelete(null);
-    setDeleteNotification(`Pengajuan ${targetId} (${targetName}) berhasil dihapus.`);
-    setTimeout(() => setDeleteNotification(null), 3500);
+    showToast(`Pengajuan ${targetId} (${targetName}) berhasil dihapus.`);
   };
 
   const handleLoadDemoItem = () => {
@@ -185,6 +214,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
+  const handleGoogleAdminLogin = async () => {
+    setIsGoogleSigningIn(true);
+    setPinError('');
+    try {
+      const result = await googleSignIn();
+      if (result) {
+        onAuthSuccess(result.user, result.accessToken);
+        setIsAuthenticated(true);
+        sessionStorage.setItem(ADMIN_PIN_STORAGE_KEY, 'true');
+      }
+    } catch (err: any) {
+      setPinError('Login Google dibatalkan atau gagal. Silakan gunakan PIN Admin.');
+    } finally {
+      setIsGoogleSigningIn(false);
+    }
+  };
+
   const handleLogout = () => {
     setIsAuthenticated(false);
     sessionStorage.removeItem(ADMIN_PIN_STORAGE_KEY);
@@ -194,13 +240,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const handleSaveNewPin = (e: React.FormEvent) => {
     e.preventDefault();
     if (newPin.trim().length < 4) {
-      alert('PIN minimal 4 karakter.');
+      showToast('⚠️ PIN minimal terdiri dari 4 karakter.');
       return;
     }
     localStorage.setItem(CUSTOM_PIN_KEY, newPin.trim());
     setIsChangingPin(false);
     setNewPin('');
-    alert('PIN Admin berhasil diperbarui!');
+    showToast('✅ PIN Admin berhasil diperbarui!');
   };
 
   // Filter submissions
@@ -236,7 +282,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const handleExportCSV = (exportOnlyFiltered: boolean = false) => {
     const itemsToExport = exportOnlyFiltered ? filtered : submissions;
     if (itemsToExport.length === 0) {
-      alert('Tidak ada data untuk diekspor.');
+      showToast('⚠️ Belum ada data pengajuan untuk diekspor.');
       return;
     }
 
@@ -288,15 +334,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    showToast(`✅ Berhasil mengekspor ${itemsToExport.length} data ke CSV.`);
   };
 
   const handleDownloadSinglePDF = async (item: ConsignmentItem) => {
     setGeneratingPdfId(item.id);
     try {
       await generateConsignmentPDF(item);
+      showToast(`✅ Bukti PDF untuk tiket ${item.id} berhasil diunduh.`);
     } catch (e) {
       console.error(e);
-      alert('Gagal membuat PDF.');
+      showToast('⚠️ Gagal membuat dokumen PDF. Silakan coba lagi.');
     } finally {
       setGeneratingPdfId(null);
     }
@@ -318,14 +366,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               Area Khusus Pengelola
             </h2>
             <p className="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed">
-              Data penitip dan informasi barang bersifat rahasia. Masukkan PIN keamanan untuk mengakses <strong>/admin</strong> info.barkasmajalengka.
+              Data penitip dan informasi barang bersifat rahasia. Silakan autentikasi untuk mengakses panel <strong>/admin</strong> info.barkasmajalengka.
             </p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                PIN Administrator
+                PIN Keamanan Admin
               </label>
               <div className="relative">
                 <KeyRound className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
@@ -365,18 +413,36 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </button>
           </form>
 
+          <div className="relative flex py-1 items-center">
+            <div className="grow border-t border-slate-200"></div>
+            <span className="shrink mx-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+              Atau Akses Cepat
+            </span>
+            <div className="grow border-t border-slate-200"></div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleGoogleAdminLogin}
+            disabled={isGoogleSigningIn}
+            className="w-full py-3 px-4 bg-slate-50 hover:bg-slate-100 border border-slate-300 text-slate-800 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+          >
+            <ShieldCheck className="w-4 h-4 text-emerald-600" />
+            <span>{isGoogleSigningIn ? 'Memverifikasi Akun Google...' : 'Masuk dengan Akun Google Admin'}</span>
+          </button>
+
           <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
             <button
               type="button"
               onClick={onBackToHome}
-              className="flex items-center gap-1 text-slate-600 hover:text-[#1B365D] font-semibold"
+              className="flex items-center gap-1 text-slate-600 hover:text-[#1B365D] font-semibold cursor-pointer"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>Kembali ke Halaman Utama</span>
             </button>
 
-            <span className="text-[11px] text-slate-400">
-              Default: <code className="bg-slate-100 px-1 py-0.5 rounded font-mono font-bold text-slate-700">barkas2026</code>
+            <span className="text-[11px] text-slate-400 flex items-center gap-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-amber-500" /> Terproteksi
             </span>
           </div>
         </div>
@@ -404,12 +470,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 B
               </div>
               <div>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
                   <h1 className="font-extrabold text-sm sm:text-base leading-tight">
                     Panel Pengelola /admin
                   </h1>
                   <span className="px-2 py-0.5 rounded-full bg-amber-400 text-[#1B365D] text-[10px] font-black uppercase tracking-wider">
                     {ADMIN_CONTACT.name}
+                  </span>
+                  <span
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                      isFirebaseConnected
+                        ? 'bg-emerald-500/20 text-emerald-200 border-emerald-400/40'
+                        : 'bg-white/10 text-slate-300 border-white/20'
+                    }`}
+                    title={
+                      isFirebaseConnected
+                        ? 'Tersinkronisasi Real-Time dengan Firebase Firestore lintas perangkat'
+                        : 'Menggunakan penyimpanan lokal perangkat'
+                    }
+                  >
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        isFirebaseConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
+                      }`}
+                    />
+                    {isFirebaseConnected ? 'Firestore Live Sync' : 'Local Mode'}
                   </span>
                 </div>
                 <p className="text-[11px] text-amber-200/90 hidden sm:block">
@@ -419,7 +504,41 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <PWAInstallButton />
+
+            {/* Financial Analytics Button */}
+            <button
+              type="button"
+              onClick={() => setIsFinancialModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-amber-200 border border-amber-400/30 font-extrabold text-xs shadow-xs transition-all cursor-pointer"
+              title="Buka Rekap Laporan Keuangan & Komisi Admin"
+            >
+              <BarChart3 className="w-3.5 h-3.5 text-amber-300" />
+              <span>Laporan Keuangan</span>
+            </button>
+
+            {/* Broadcast Rekap Stok Ready Button */}
+            <button
+              type="button"
+              onClick={() => setIsBroadcastModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white border border-white/25 font-bold text-xs shadow-xs transition-all cursor-pointer"
+              title="Buat Teks Broadcast Rekap Stok Ready Hari Ini untuk WA Status / Grup"
+            >
+              <span>Broadcast Stok</span>
+            </button>
+
+            {/* Quick Lookup & QR Scanner Button */}
+            <button
+              type="button"
+              onClick={() => setIsQuickScannerOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-[#1B365D] font-extrabold text-xs shadow-xs transition-all cursor-pointer"
+              title="Buka Pemindai QR & Lookup Cepat Tiket Gudang"
+            >
+              <QrCode className="w-3.5 h-3.5" />
+              <span>Scan & Lookup</span>
+            </button>
+
             {/* Google Forms Button */}
             <button
               onClick={() => setIsGoogleModalOpen(true)}
@@ -507,6 +626,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </span>
           </div>
         </div>
+
+        {/* Feature #5: Panel Tugas Prioritas Admin Hari Ini (Action Center) */}
+        <AdminPriorityActionCenter
+          submissions={submissions}
+          onFilterByStatus={(statusTab) => setSelectedStatusTab(statusTab)}
+          onUpdateStatus={onUpdateStatus}
+          onOpenEditPrice={(item) => setEditPriceItem(item)}
+          onOpenPayoutReceipt={(item) => setPayoutModalItem(item)}
+        />
 
         {/* Operational Setting & Quick Admin WhatsApp config */}
         <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
@@ -835,6 +963,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     }}
                     onOpenQR={(item) => setQrModalItem(item)}
                     onDownloadPDF={handleDownloadSinglePDF}
+                    onOpenPayoutReceipt={(item) => setPayoutModalItem(item)}
+                    onOpenBuyerInvoice={(item) => setBuyerInvoiceItem(item)}
+                    onOpenEditPrice={(item) => setEditPriceItem(item)}
                   />
                 ))}
               </div>
@@ -842,6 +973,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               /* COMPACT TABLE MODE */
               filtered.map((item) => {
                 const waUrl = generateAdminWhatsAppUrl(item, adminWhatsAppNumber);
+                const priceDropWaUrl = generatePriceDropWhatsAppUrl(item);
                 const tenor = getTenorTimeline(item.createdAt);
                 const estimates = calculateListingEstimates(item.nettPrice);
 
@@ -872,15 +1004,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
                           {tenor.isExpired ? (
                             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
-                              🚨 Tenor 30 Hari Habis (Opsi Kembalikan / Perpanjang)
+                              🚨 Hari ke-{tenor.elapsedDays}: Tenor 30 Hari Habis (Opsi Kembalikan / Perpanjang)
                             </span>
                           ) : tenor.isPriceDropPeriod ? (
                             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                              ⚠️ Hari ke-20+ (Waktunya Opsi Price Drop)
+                              ⚠️ Hari ke-{tenor.elapsedDays}/30 (Waktunya Opsi Price Drop)
                             </span>
                           ) : (
                             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-200">
-                              ⏳ Sisa Tenor: {tenor.remainingDays} hari (Maks. 30 Hari)
+                              ⏳ Hari ke-{tenor.elapsedDays}/30 • Sisa Tenor: {tenor.remainingDays} hari
                             </span>
                           )}
 
@@ -992,14 +1124,59 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       </span>
 
                       <div className="flex items-center gap-2 flex-wrap">
-                        {/* QR Code Scan Verification */}
+                        {/* Edit Price / Price Drop */}
+                        <button
+                          type="button"
+                          onClick={() => setEditPriceItem(item)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-900 border border-rose-300 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                          title="Edit Harga Bersih / Aktifkan Promo Price Drop"
+                        >
+                          <TrendingDown className="w-3.5 h-3.5 text-rose-700" />
+                          <span>Edit Harga</span>
+                        </button>
+
+                        {/* Price Drop WA (Day 20) */}
+                        <a
+                          href={priceDropWaUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                          title="Kirim WA Opsi Price Drop (Hari ke-20)"
+                        >
+                          <Clock className="w-3.5 h-3.5 text-amber-700" />
+                          <span>WA Price Drop (H-20)</span>
+                        </a>
+
+                        {/* Payout Receipt (Kwitansi Pencairan) */}
+                        <button
+                          type="button"
+                          onClick={() => setPayoutModalItem(item)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                          title="Buat Kwitansi Pencairan Dana Lunas (PDF & WA)"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
+                          <span>Kwitansi Cair</span>
+                        </button>
+
+                        {/* Buyer Invoice (Nota Pembeli) */}
+                        <button
+                          type="button"
+                          onClick={() => setBuyerInvoiceItem(item)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-300 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                          title="Cetak Nota Pembelian / Invoice COD & Rekber (PDF)"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-blue-700" />
+                          <span>Nota Pembeli</span>
+                        </button>
+
+                        {/* QR Code Scan Verification & Hangtag */}
                         <button
                           type="button"
                           onClick={() => setQrModalItem(item)}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 font-bold rounded-xl text-xs transition-colors cursor-pointer"
                         >
                           <QrCode className="w-3.5 h-3.5 text-amber-700" />
-                          <span>Kode QR Tiket</span>
+                          <span>QR & Hangtag</span>
                         </button>
 
                         {/* Download PDF Receipt */}
@@ -1098,6 +1275,72 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         item={qrModalItem}
         isOpen={!!qrModalItem}
         onClose={() => setQrModalItem(null)}
+      />
+
+      {/* Camera & Image QR Scanner Modal */}
+      <QRScannerModal
+        isOpen={isQRScannerOpen}
+        onClose={() => setIsQRScannerOpen(false)}
+        submissions={submissions}
+        onUpdateStatus={onUpdateStatus}
+        onDownloadPDF={handleDownloadSinglePDF}
+      />
+
+      {/* Payout Receipt (Kwitansi Pencairan Dana) Modal */}
+      <PayoutReceiptModal
+        item={payoutModalItem}
+        onClose={() => setPayoutModalItem(null)}
+        onUpdateStatus={onUpdateStatus}
+      />
+
+      {/* Buyer Invoice (Nota Pembelian COD & Rekber) Modal */}
+      <BuyerInvoiceModal
+        item={buyerInvoiceItem}
+        isOpen={!!buyerInvoiceItem}
+        onClose={() => setBuyerInvoiceItem(null)}
+        onUpdateStatus={onUpdateStatus}
+      />
+
+      {/* Daily Stock Broadcast Generator Modal */}
+      <DailyStockBroadcastModal
+        submissions={submissions}
+        isOpen={isBroadcastModalOpen}
+        onClose={() => setIsBroadcastModalOpen(false)}
+      />
+
+      {/* Quick QR Scanner & Ticket Lookup Modal */}
+      <AdminQuickScannerModal
+        submissions={submissions}
+        isOpen={isQuickScannerOpen}
+        onClose={() => setIsQuickScannerOpen(false)}
+        onSelectAndFocusTicket={(ticketId) => {
+          setSelectedStatusTab('ALL');
+          setSelectedCategory('ALL');
+          setSearchTerm(ticketId);
+        }}
+        onUpdateStatus={onUpdateStatus}
+        onOpenQRModal={(item) => setQrModalItem(item)}
+        onOpenBuyerInvoice={(item) => setBuyerInvoiceItem(item)}
+        onOpenPayoutReceipt={(item) => setPayoutModalItem(item)}
+      />
+
+      {/* Edit Price & Promo Price Drop Modal */}
+      <EditPriceModal
+        item={editPriceItem}
+        onClose={() => setEditPriceItem(null)}
+        onSavePrice={async (ticketId, newNett, prevNett) => {
+          if (onUpdatePrice) {
+            await onUpdatePrice(ticketId, newNett, prevNett);
+            showToast(`✅ Harga tiket ${ticketId} berhasil diperbarui!`);
+          }
+        }}
+      />
+
+      {/* Financial Analytics Modal */}
+      <FinancialAnalyticsModal
+        isOpen={isFinancialModalOpen}
+        onClose={() => setIsFinancialModalOpen(false)}
+        submissions={submissions}
       />
 
       {/* Google Forms Modal */}

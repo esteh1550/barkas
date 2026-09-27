@@ -41,6 +41,7 @@ export interface ConsignmentItem {
   condition: ItemCondition;
   descriptionAndFlaws: string;
   nettPrice: number; // in IDR
+  previousNettPrice?: number; // in IDR (set when Admin applies a Price Drop)
 
   // 3. Media & Ketentuan
   photos: string[]; // Base64 or object URLs

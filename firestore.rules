@@ -1,0 +1,82 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: submissions
+    // Document ID: {submissionId} (e.g., BM-2026-1234)
+    // Fields:
+    //   - id: string (required, ticket ID e.g. #BM-2026-1234)
+    //   - createdAt: string (required, ISO timestamp)
+    //   - fullName: string (required, 1..150 chars)
+    //   - whatsappNumber: string (required, 5..30 chars)
+    //   - kecamatan: string (required, 1..100 chars)
+    //   - bankAccount: string (required, 1..200 chars)
+    //   - category: string (required, valid ItemCategory)
+    //   - itemNameAndBrand: string (required, 1..200 chars)
+    //   - size: string (required, 1..100 chars)
+    //   - condition: string (required, valid ItemCondition)
+    //   - descriptionAndFlaws: string (required, 1..3000 chars)
+    //   - nettPrice: number (required, > 0)
+    //   - photos: list of strings (required, 1..8 items)
+    //   - agreementAccepted: bool (required)
+    //   - status: string (required, valid SubmissionStatus)
+    //   - postStatus: string (optional, valid AdminPostStatus)
+    //   - syncedToGoogleForms: bool (optional)
+    //   - googleFormId: string (optional)
+    //
+    // ===============================================================
+
+    function hasRequiredSubmissionFields(data) {
+      return data.keys().hasAll([
+        'id',
+        'createdAt',
+        'fullName',
+        'whatsappNumber',
+        'kecamatan',
+        'bankAccount',
+        'category',
+        'itemNameAndBrand',
+        'size',
+        'condition',
+        'descriptionAndFlaws',
+        'nettPrice',
+        'photos',
+        'agreementAccepted',
+        'status'
+      ]);
+    }
+
+    function isValidConsignmentSubmission(data) {
+      return hasRequiredSubmissionFields(data)
+        && data.id is string && data.id.size() >= 3 && data.id.size() <= 50
+        && data.createdAt is string && data.createdAt.size() >= 10 && data.createdAt.size() <= 60
+        && data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 150
+        && data.whatsappNumber is string && data.whatsappNumber.size() >= 5 && data.whatsappNumber.size() <= 35
+        && data.kecamatan is string && data.kecamatan.size() >= 1 && data.kecamatan.size() <= 100
+        && data.bankAccount is string && data.bankAccount.size() >= 1 && data.bankAccount.size() <= 250
+        && data.category in ['Fashion', 'Sneakers / Sepatu', 'Helm & Otomotif', 'Gadget & Elektronik', 'Lainnya']
+        && data.itemNameAndBrand is string && data.itemNameAndBrand.size() >= 1 && data.itemNameAndBrand.size() <= 250
+        && data.size is string && data.size.size() >= 1 && data.size.size() <= 100
+        && data.condition in ['Baru / BNIB', 'Seperti Baru / Like New', 'Bekas Pemakaian Wajar', 'Ada Minus']
+        && data.descriptionAndFlaws is string && data.descriptionAndFlaws.size() >= 1 && data.descriptionAndFlaws.size() <= 4000
+        && data.nettPrice is number && data.nettPrice > 0 && data.nettPrice <= 1000000000
+        && (!('previousNettPrice' in data) || (data.previousNettPrice is number && data.previousNettPrice >= 0 && data.previousNettPrice <= 1000000000))
+        && data.photos is list && data.photos.size() >= 1 && data.photos.size() <= 8
+        && data.agreementAccepted is bool
+        && data.status in ['Menunggu Kurasi', 'Diterima', 'Ditolak', 'Sedang Dipajang (Live)', 'Terjual', 'Selesai & Dicairkan']
+        && (!('postStatus' in data) || data.postStatus in ['Draft', 'Ready to Post', 'Posted', 'Sold Out'])
+        && (!('syncedToGoogleForms' in data) || data.syncedToGoogleForms is bool)
+        && (!('googleFormId' in data) || (data.googleFormId is string && data.googleFormId.size() <= 200));
+    }
+
+    match /submissions/{submissionId} {
+      allow read: if true;
+      allow create: if isValidConsignmentSubmission(request.resource.data);
+      allow update: if isValidConsignmentSubmission(request.resource.data);
+      allow delete: if true;
+    }
+  }
+}

@@ -8,6 +8,7 @@ export interface WatermarkOptions {
   subText?: string;
   position?: 'bottom-right' | 'bottom-center' | 'center';
   badgeStyle?: 'modern-pill' | 'subtle-stamp' | 'center-diagonal';
+  priceDropText?: string;
 }
 
 export const applyWatermark = (
@@ -123,6 +124,33 @@ export const applyWatermark = (
       ctx.shadowBlur = 4 * scale;
       ctx.fillText('✓ VERIFIED BY BARKASMAJALENGKA', 24 * scale, 32 * scale);
 
+      // 7. Optional Price Drop badge on top-right
+      if (options.priceDropText) {
+        const pdFontSize = Math.round(20 * scale);
+        ctx.font = `800 ${pdFontSize}px "Plus Jakarta Sans", system-ui, sans-serif`;
+        const pdTextWidth = ctx.measureText(options.priceDropText).width;
+        const pdW = pdTextWidth + 32 * scale;
+        const pdH = pdFontSize + 20 * scale;
+        const pdX = canvas.width - pdW - 24 * scale;
+        const pdY = 24 * scale;
+
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+        ctx.shadowBlur = 12 * scale;
+        ctx.fillStyle = '#E11D48'; // Rose-600
+        ctx.beginPath();
+        ctx.roundRect(pdX, pdY, pdW, pdH, 12 * scale);
+        ctx.fill();
+
+        ctx.shadowColor = 'transparent';
+        ctx.lineWidth = 2 * scale;
+        ctx.strokeStyle = '#FDE68A';
+        ctx.stroke();
+
+        ctx.fillStyle = '#FFFFFF';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(options.priceDropText, pdX + 16 * scale, pdY + pdH / 2);
+      }
+
       ctx.restore();
 
       // Export high quality JPEG
@@ -135,6 +163,133 @@ export const applyWatermark = (
       reject(err);
     };
 
+    img.src = imageUrl;
+  });
+};
+
+/**
+ * Generate a bold "SOLD OUT / TERJUAL" stamp overlay on an item photo for Instagram Story/Feed social proof
+ */
+export const applySoldOutStamp = (
+  imageUrl: string,
+  itemTitle: string,
+  ticketId: string,
+  kecamatan: string = 'Majalengka'
+): Promise<string> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(imageUrl);
+        return;
+      }
+
+      canvas.width = img.naturalWidth || img.width;
+      canvas.height = img.naturalHeight || img.height;
+
+      // 1. Draw base image
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      // 2. Darken overlay slightly so the SOLD OUT stamp pops dramatically
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.42)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const baseDim = Math.min(canvas.width, canvas.height);
+      const scale = Math.max(0.65, baseDim / 1000);
+
+      // 3. Draw Diagonal "TERJUAL / SOLD OUT" Stamp in Center
+      ctx.save();
+      ctx.translate(canvas.width / 2, canvas.height / 2 - 20 * scale);
+      ctx.rotate((-12 * Math.PI) / 180);
+
+      const stampWidth = Math.min(canvas.width * 0.84, 680 * scale);
+      const stampHeight = 165 * scale;
+
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.65)';
+      ctx.shadowBlur = 28 * scale;
+      ctx.shadowOffsetY = 10 * scale;
+
+      // Rich Crimson Red with Gold/White Double Border
+      ctx.fillStyle = 'rgba(225, 29, 72, 0.94)';
+      ctx.beginPath();
+      ctx.roundRect(-stampWidth / 2, -stampHeight / 2, stampWidth, stampHeight, 20 * scale);
+      ctx.fill();
+
+      ctx.shadowColor = 'transparent';
+      ctx.lineWidth = 5 * scale;
+      ctx.strokeStyle = '#FDE68A';
+      ctx.stroke();
+
+      // Inner dashed border
+      ctx.setLineDash([12 * scale, 8 * scale]);
+      ctx.lineWidth = 2 * scale;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
+      ctx.beginPath();
+      ctx.roundRect(
+        -stampWidth / 2 + 12 * scale,
+        -stampHeight / 2 + 12 * scale,
+        stampWidth - 24 * scale,
+        stampHeight - 24 * scale,
+        14 * scale
+      );
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Main SOLD OUT headline
+      ctx.fillStyle = '#FFFFFF';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = `900 ${Math.round(58 * scale)}px "Plus Jakarta Sans", system-ui, sans-serif`;
+      ctx.fillText('TERJUAL / SOLD', 0, -16 * scale);
+
+      // Sub-banner inside stamp
+      ctx.fillStyle = '#FDE68A';
+      ctx.font = `800 ${Math.round(22 * scale)}px "Plus Jakarta Sans", system-ui, sans-serif`;
+      ctx.fillText(`ALHAMDULILLAH • ${ticketId.toUpperCase()}`, 0, 42 * scale);
+
+      ctx.restore();
+
+      // 4. Bottom Navy Banner with Item Name & @info.barkasmajalengka Branding
+      ctx.save();
+      const footerH = 115 * scale;
+      const footerY = canvas.height - footerH - 24 * scale;
+      const footerW = canvas.width - 48 * scale;
+      const footerX = 24 * scale;
+
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
+      ctx.shadowBlur = 20 * scale;
+      ctx.fillStyle = 'rgba(27, 54, 93, 0.95)';
+      ctx.beginPath();
+      ctx.roundRect(footerX, footerY, footerW, footerH, 18 * scale);
+      ctx.fill();
+
+      ctx.shadowColor = 'transparent';
+      ctx.lineWidth = 2.5 * scale;
+      ctx.strokeStyle = '#F59E0B';
+      ctx.stroke();
+
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#FDE68A';
+      ctx.font = `800 ${Math.round(20 * scale)}px "Plus Jakarta Sans", system-ui, sans-serif`;
+      const cleanTitle =
+        itemTitle.length > 38 ? `${itemTitle.slice(0, 38)}...` : itemTitle;
+      ctx.fillText(`✓ ${cleanTitle.toUpperCase()}`, canvas.width / 2, footerY + 38 * scale);
+
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = `700 ${Math.round(24 * scale)}px "Plus Jakarta Sans", system-ui, sans-serif`;
+      ctx.fillText(
+        `LAKU VIA @info.barkasmajalengka • Kec. ${kecamatan}`,
+        canvas.width / 2,
+        footerY + 78 * scale
+      );
+      ctx.restore();
+
+      resolve(canvas.toDataURL('image/jpeg', 0.92));
+    };
+    img.onerror = () => resolve(imageUrl);
     img.src = imageUrl;
   });
 };

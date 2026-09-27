@@ -21,7 +21,11 @@ import {
   ShieldAlert,
   Loader2,
   Lock,
-  MessageCircle
+  MessageCircle,
+  Search,
+  Clock,
+  RotateCcw,
+  ShoppingBag
 } from 'lucide-react';
 
 import { 
@@ -35,16 +39,32 @@ import {
   AdminPostStatus,
   ADMIN_CONTACT
 } from './types/consignment';
-import { formatRupiah, parseRupiahInput, calculateListingEstimates } from './utils/formatters';
+import { formatRupiah, parseRupiahInput, calculateListingEstimates, getTenorTimeline } from './utils/formatters';
 import { Header } from './components/Header';
 import { PhotoUploader } from './components/PhotoUploader';
 import { SuccessModal } from './components/SuccessModal';
 import { FAQModal } from './components/FAQModal';
+import { CommissionSimulator } from './components/CommissionSimulator';
+import { LiveCatalogSection } from './components/LiveCatalogSection';
+import { OfflineIndicator } from './components/OfflineIndicator';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { initAuth } from './services/googleAuth';
 import { createConsignmentGoogleForm } from './services/googleForms';
+import {
+  saveSubmissionToFirebase,
+  subscribeToSubmissions,
+  subscribeToLiveCatalog,
+  subscribeToSoldCatalog,
+  getSubmissionByTicketId,
+  updateSubmissionStatusInFirebase,
+  updateSubmissionPostStatusInFirebase,
+  updateSubmissionPriceInFirebase,
+  deleteSubmissionFromFirebase,
+  testFirestoreConnection,
+} from './services/firebaseService';
 
 const STORAGE_KEY = 'barkas_majalengka_submissions';
+const FORM_DRAFT_KEY = 'barkas_consignment_form_draft';
 const ADMIN_PHONE_KEY = 'barkas_admin_whatsapp';
 const DEFAULT_ADMIN_PHONE = ADMIN_CONTACT.whatsappInternational;
 
@@ -133,19 +153,146 @@ export default function App() {
   const [adminPhone, setAdminPhone] = useState<string>(DEFAULT_ADMIN_PHONE);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [appToast, setAppToast] = useState<string | null>(null);
+  const [hasRestoredDraft, setHasRestoredDraft] = useState(false);
+
+  // Public Ticket Status Tracker State
+  const [ticketSearchQuery, setTicketSearchQuery] = useState('');
+  const [trackedTicket, setTrackedTicket] = useState<ConsignmentItem | null>(null);
+  const [isSearchingTicket, setIsSearchingTicket] = useState(false);
+  const [ticketSearchError, setTicketSearchError] = useState<string | null>(null);
+  const [publicActiveTab, setPublicActiveTab] = useState<'form' | 'catalog'>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('item')) return 'catalog';
+    }
+    return 'form';
+  });
+  const [initialCatalogTicketId] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('item');
+    }
+    return null;
+  });
+  const [liveCatalogItems, setLiveCatalogItems] = useState<ConsignmentItem[]>([]);
+  const [soldCatalogItems, setSoldCatalogItems] = useState<ConsignmentItem[]>([]);
 
   // Google Workspace / Forms Auth State
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isSyncingGoogle, setIsSyncingGoogle] = useState(false);
+  const [isFirebaseConnected, setIsFirebaseConnected] = useState<boolean>(false);
 
-  // Load submissions and settings from localStorage on initial render
+  const showAppToast = (msg: string) => {
+    setAppToast(msg);
+    setTimeout(() => setAppToast(null), 3500);
+  };
+
+  // Save submissions to localStorage & state with QuotaExceededError fallback
+  const saveSubmissions = (newItems: ConsignmentItem[]) => {
+    setSubmissions(newItems);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newItems));
+    } catch {
+      try {
+        // Fallback: keep only 1 thumbnail photo per item in localStorage if 5MB quota is exceeded
+        const lightweightItems = newItems.slice(0, 30).map((item) => ({
+          ...item,
+          photos: item.photos && item.photos.length > 0 ? [item.photos[0]] : [],
+        }));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(lightweightItems));
+      } catch (innerErr) {
+        console.warn('LocalStorage quota full, relying on Firestore cloud storage:', innerErr);
+      }
+    }
+  };
+
+  // Restore form draft from sessionStorage on initial mount
   useEffect(() => {
     try {
-      const savedSubmissions = localStorage.getItem(STORAGE_KEY);
-      if (savedSubmissions) {
-        setSubmissions(JSON.parse(savedSubmissions));
+      const savedDraft = sessionStorage.getItem(FORM_DRAFT_KEY);
+      if (savedDraft) {
+        const draft = JSON.parse(savedDraft);
+        if (draft.fullName) setFullName(draft.fullName);
+        if (draft.whatsappNumber) setWhatsappNumber(draft.whatsappNumber);
+        if (draft.kecamatan) setKecamatan(draft.kecamatan);
+        if (draft.bankAccount) setBankAccount(draft.bankAccount);
+        if (draft.category) setCategory(draft.category);
+        if (draft.itemNameAndBrand) setItemNameAndBrand(draft.itemNameAndBrand);
+        if (draft.size) setSize(draft.size);
+        if (draft.condition) setCondition(draft.condition);
+        if (draft.descriptionAndFlaws) setDescriptionAndFlaws(draft.descriptionAndFlaws);
+        if (draft.nettPriceRaw) setNettPriceRaw(draft.nettPriceRaw);
+        if (draft.fullName || draft.itemNameAndBrand || draft.descriptionAndFlaws) {
+          setHasRestoredDraft(true);
+        }
       }
+    } catch {
+      // ignore sessionStorage errors
+    }
+  }, []);
+
+  // Auto-save form text draft to sessionStorage whenever user types
+  useEffect(() => {
+    try {
+      const draft = {
+        fullName,
+        whatsappNumber,
+        kecamatan,
+        bankAccount,
+        category,
+        itemNameAndBrand,
+        size,
+        condition,
+        descriptionAndFlaws,
+        nettPriceRaw,
+      };
+      sessionStorage.setItem(FORM_DRAFT_KEY, JSON.stringify(draft));
+    } catch {
+      // ignore sessionStorage errors
+    }
+  }, [
+    fullName,
+    whatsappNumber,
+    kecamatan,
+    bankAccount,
+    category,
+    itemNameAndBrand,
+    size,
+    condition,
+    descriptionAndFlaws,
+    nettPriceRaw,
+  ]);
+
+  const handleResetDraft = () => {
+    setFullName('');
+    setWhatsappNumber('');
+    setKecamatan('Majalengka');
+    setBankAccount('');
+    setCategory('Fashion');
+    setItemNameAndBrand('');
+    setSize('');
+    setCondition('Seperti Baru / Like New');
+    setDescriptionAndFlaws('');
+    setNettPriceRaw('');
+    setPhotos([]);
+    setAgreementAccepted(false);
+    setErrors({});
+    setHasRestoredDraft(false);
+    try {
+      sessionStorage.removeItem(FORM_DRAFT_KEY);
+    } catch {
+      // ignore
+    }
+    showAppToast('Draf formulir telah dikosongkan.');
+  };
+
+  // Load initial settings & Google Auth listener
+  useEffect(() => {
+    testFirestoreConnection();
+
+    try {
       const savedAdmin = localStorage.getItem(ADMIN_PHONE_KEY);
       if (savedAdmin && savedAdmin !== '6285224000100') {
         setAdminPhone(savedAdmin);
@@ -158,7 +305,7 @@ export default function App() {
     }
 
     // Initialize Google Firebase Auth state listener
-    const unsubscribe = initAuth(
+    const unsubscribeAuth = initAuth(
       (user, token) => {
         setCurrentUser(user);
         setAccessToken(token);
@@ -169,18 +316,117 @@ export default function App() {
       }
     );
 
+    // Subscribe to public Live Catalog ('Sedang Dipajang (Live)') with privacy masking
+    const unsubscribeLiveCatalog = subscribeToLiveCatalog((liveItems) => {
+      setLiveCatalogItems(liveItems);
+    });
+
+    // Subscribe to recently sold items ('Terjual' / 'Selesai & Dicairkan') with privacy masking
+    const unsubscribeSoldCatalog = subscribeToSoldCatalog((soldItems) => {
+      setSoldCatalogItems(soldItems);
+    });
+
     return () => {
-      if (typeof unsubscribe === 'function') unsubscribe();
+      if (typeof unsubscribeAuth === 'function') unsubscribeAuth();
+      if (typeof unsubscribeLiveCatalog === 'function') unsubscribeLiveCatalog();
+      if (typeof unsubscribeSoldCatalog === 'function') unsubscribeSoldCatalog();
     };
   }, []);
 
-  // Save submissions to localStorage
-  const saveSubmissions = (newItems: ConsignmentItem[]) => {
-    setSubmissions(newItems);
+  // Subscribe to full submissions collection ONLY when on /admin route (Protects consignor privacy on public page)
+  useEffect(() => {
+    const isAdminRoute = currentPath === '/admin' || currentPath.startsWith('/admin');
+    if (!isAdminRoute) {
+      return;
+    }
+
+    let initialLocalItems: ConsignmentItem[] = [];
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newItems));
-    } catch (e) {
-      console.warn('LocalStorage save error:', e);
+      const savedSubmissions = localStorage.getItem(STORAGE_KEY);
+      if (savedSubmissions) {
+        initialLocalItems = JSON.parse(savedSubmissions);
+        setSubmissions(initialLocalItems);
+      }
+    } catch {
+      // ignore
+    }
+
+    let hasSyncedLocalToCloud = false;
+
+    const unsubscribeFirestore = subscribeToSubmissions(
+      (cloudItems) => {
+        setIsFirebaseConnected(true);
+
+        if (!hasSyncedLocalToCloud) {
+          hasSyncedLocalToCloud = true;
+          const cloudIds = new Set(cloudItems.map((item) => item.id));
+          const missingLocalItems = initialLocalItems.filter((item) => !cloudIds.has(item.id));
+
+          if (missingLocalItems.length > 0) {
+            missingLocalItems.forEach((item) => {
+              saveSubmissionToFirebase(item).catch((err) =>
+                console.warn('Failed to migrate local submission to Firestore:', err)
+              );
+            });
+            const merged = [...missingLocalItems, ...cloudItems].sort(
+              (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            );
+            saveSubmissions(merged);
+            return;
+          }
+        }
+
+        saveSubmissions(cloudItems);
+      },
+      () => {
+        setIsFirebaseConnected(false);
+      }
+    );
+
+    return () => {
+      if (typeof unsubscribeFirestore === 'function') unsubscribeFirestore();
+    };
+  }, [currentPath]);
+
+  // Public Ticket Status Lookup Handler
+  const handleTrackTicket = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleaned = ticketSearchQuery.trim().toUpperCase();
+    if (!cleaned) {
+      setTicketSearchError('Masukkan kode tiket Anda (contoh: #BM-2026-1234).');
+      setTrackedTicket(null);
+      return;
+    }
+
+    setIsSearchingTicket(true);
+    setTicketSearchError(null);
+    try {
+      const normalizedTicket = cleaned.startsWith('#') ? cleaned : `#${cleaned}`;
+      const cloudResult = await getSubmissionByTicketId(normalizedTicket);
+      if (cloudResult) {
+        setTrackedTicket(cloudResult);
+        return;
+      }
+
+      // Fallback check in local storage if offline
+      const savedLocal = localStorage.getItem(STORAGE_KEY);
+      if (savedLocal) {
+        const parsed: ConsignmentItem[] = JSON.parse(savedLocal);
+        const foundLocal = parsed.find(
+          (item) => item.id.toUpperCase() === normalizedTicket || item.id.toUpperCase() === cleaned
+        );
+        if (foundLocal) {
+          setTrackedTicket(foundLocal);
+          return;
+        }
+      }
+
+      setTrackedTicket(null);
+      setTicketSearchError(`Tiket "${normalizedTicket}" tidak ditemukan. Pastikan kode tiket sudah benar.`);
+    } catch {
+      setTicketSearchError('Gagal memeriksa status tiket. Silakan coba lagi.');
+    } finally {
+      setIsSearchingTicket(false);
     }
   };
 
@@ -232,8 +478,8 @@ export default function App() {
     return Object.keys(newErrors).length === 0;
   };
 
-  // Submit Handler
-  const handleSubmit = (e: React.FormEvent) => {
+  // Submit Handler (Saves to both localStorage and Firebase Firestore for real-time cross-device sync)
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!validateForm()) {
@@ -269,8 +515,16 @@ export default function App() {
         status: 'Menunggu Kurasi',
       };
 
-      const updatedList = [newItem, ...submissions];
+      // Update localStorage immediately for instant responsiveness & offline fallback
+      const updatedList = [newItem, ...submissions.filter((s) => s.id !== newItem.id)];
       saveSubmissions(updatedList);
+
+      // Save to Firebase Firestore so all devices receive real-time update
+      try {
+        await saveSubmissionToFirebase(newItem);
+      } catch (firebaseErr) {
+        console.warn('Firestore sync warning (data remains saved in localStorage):', firebaseErr);
+      }
 
       setSubmittedItem(newItem);
       setIsSuccessModalOpen(true);
@@ -286,9 +540,15 @@ export default function App() {
       setPhotos([]);
       setAgreementAccepted(false);
       setErrors({});
+      setHasRestoredDraft(false);
+      try {
+        sessionStorage.removeItem(FORM_DRAFT_KEY);
+      } catch {
+        // ignore
+      }
     } catch (err) {
       console.error('Error submitting consignment form:', err);
-      alert('Terjadi kendala saat mengirim data. Silakan coba lagi.');
+      showAppToast('Terjadi kendala saat mengirim data. Silakan coba lagi.');
     } finally {
       setIsSubmitting(false);
     }
@@ -304,10 +564,10 @@ export default function App() {
     setIsSyncingGoogle(true);
     try {
       await createConsignmentGoogleForm(accessToken);
-      alert('Google Form resmi berhasil dibuat dan disinkronkan ke akun Google Anda!');
+      showAppToast('✅ Google Form resmi berhasil dibuat dan disinkronkan!');
     } catch (err: any) {
       console.error('Sync to Google Form error:', err);
-      alert('Gagal menyinkronkan ke Google Forms: ' + (err.message || 'Izin ditolak'));
+      showAppToast('⚠️ Gagal menyinkronkan ke Google Forms.');
     } finally {
       setIsSyncingGoogle(false);
     }
@@ -318,21 +578,47 @@ export default function App() {
     return (
       <AdminDashboard
         submissions={submissions}
+        isFirebaseConnected={isFirebaseConnected}
         onUpdateStatus={(id: string, newStatus: SubmissionStatus) => {
           const updated = submissions.map((s) => (s.id === id ? { ...s, status: newStatus } : s));
           saveSubmissions(updated);
+          updateSubmissionStatusInFirebase(id, newStatus).catch((err) =>
+            console.warn('Failed to update status in Firestore:', err)
+          );
         }}
         onUpdatePostStatus={(id: string, newPostStatus: AdminPostStatus) => {
           const updated = submissions.map((s) => (s.id === id ? { ...s, postStatus: newPostStatus } : s));
           saveSubmissions(updated);
+          updateSubmissionPostStatusInFirebase(id, newPostStatus).catch((err) =>
+            console.warn('Failed to update postStatus in Firestore:', err)
+          );
+        }}
+        onUpdatePrice={async (id: string, newNettPrice: number, previousNettPrice?: number) => {
+          const updated = submissions.map((s) =>
+            s.id === id
+              ? {
+                  ...s,
+                  nettPrice: newNettPrice,
+                  previousNettPrice: previousNettPrice && previousNettPrice > 0 ? previousNettPrice : undefined,
+                }
+              : s
+          );
+          saveSubmissions(updated);
+          await updateSubmissionPriceInFirebase(id, newNettPrice, previousNettPrice);
         }}
         onDeleteSubmission={(id: string) => {
           const updated = submissions.filter((s) => s.id !== id);
           saveSubmissions(updated);
+          deleteSubmissionFromFirebase(id).catch((err) =>
+            console.warn('Failed to delete submission from Firestore:', err)
+          );
         }}
         onAddSampleItem={(sampleItem: ConsignmentItem) => {
-          const updated = [sampleItem, ...submissions];
+          const updated = [sampleItem, ...submissions.filter((s) => s.id !== sampleItem.id)];
           saveSubmissions(updated);
+          saveSubmissionToFirebase(sampleItem).catch((err) =>
+            console.warn('Failed to save sample item to Firestore:', err)
+          );
         }}
         adminWhatsAppNumber={adminPhone}
         onUpdateAdminWhatsApp={(newPhone) => {
@@ -363,21 +649,45 @@ export default function App() {
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-3xl w-full mx-auto px-4 py-6 sm:py-8">
+      <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-6 sm:py-8">
+        {/* Top Mode Switcher: Formulir Titip Jual vs Etalase Barang Live */}
+        <div className="mb-5 p-1.5 rounded-2xl bg-slate-200/80 border border-slate-300/80 grid grid-cols-2 gap-1.5">
+          <button
+            type="button"
+            onClick={() => setPublicActiveTab('form')}
+            className={`py-2.5 px-4 rounded-xl text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              publicActiveTab === 'form'
+                ? 'bg-[#1B365D] text-white shadow-xs'
+                : 'text-slate-700 hover:text-[#1B365D]'
+            }`}
+          >
+            <Tag className="w-4 h-4 text-amber-400" />
+            <span>Formulir Titip Jual</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setPublicActiveTab('catalog')}
+            className={`py-2.5 px-4 rounded-xl text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              publicActiveTab === 'catalog'
+                ? 'bg-[#1B365D] text-white shadow-xs'
+                : 'text-slate-700 hover:text-[#1B365D]'
+            }`}
+          >
+            <ShoppingBag className="w-4 h-4 text-amber-400" />
+            <span>Etalase Barang Live ({liveCatalogItems.length})</span>
+          </button>
+        </div>
+
         {/* Intro banner */}
         <div className="mb-6 p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center shrink-0">
-              <Sparkles className="w-5 h-5 text-amber-500" />
-            </div>
-            <div>
-              <h2 className="text-sm sm:text-base font-bold text-slate-800">
-                Punya Barang Bagus Jarang Dipakai?
-              </h2>
-              <p className="text-xs text-slate-500">
-                Titip jualkan di <strong>info.barkasmajalengka</strong>. Dapatkan uang tunai tanpa repot COD!
-              </p>
-            </div>
+          <div>
+            <h2 className="text-sm sm:text-base font-bold text-slate-800">
+              Punya Barang Bagus Jarang Dipakai?
+            </h2>
+            <p className="text-xs text-slate-500">
+              Titip jualkan di <strong>info.barkasmajalengka</strong>. Dapatkan uang tunai tanpa repot COD!
+            </p>
           </div>
 
           <button
@@ -385,10 +695,201 @@ export default function App() {
             onClick={() => setIsFAQOpen(true)}
             className="inline-flex items-center gap-1 text-xs font-semibold text-[#1B365D] hover:text-amber-600 bg-slate-50 hover:bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 transition-colors cursor-pointer"
           >
-            <HelpCircle className="w-3.5 h-3.5" />
             <span>Cara Kerja & Tenor</span>
           </button>
         </div>
+
+        {/* Public Ticket Status Tracker (Privacy-Safe Lookup by Ticket ID) */}
+        <div className="mb-6 bg-white rounded-3xl p-4 sm:p-5 border border-slate-200 shadow-xs space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <h3 className="text-xs sm:text-sm font-extrabold text-[#1B365D]">
+                Cek Status Tiket & Sisa Masa Titip 30 Hari
+              </h3>
+              <p className="text-[11px] text-slate-500">
+                Sudah daftar? Masukkan Kode Tiket Anda untuk memantau status kurasi & penjualan secara real-time.
+              </p>
+            </div>
+          </div>
+
+          <form onSubmit={handleTrackTicket} className="flex flex-col sm:flex-row gap-2">
+            <input
+              type="text"
+              value={ticketSearchQuery}
+              onChange={(e) => {
+                setTicketSearchQuery(e.target.value);
+                if (ticketSearchError) setTicketSearchError(null);
+              }}
+              placeholder="Masukkan Kode Tiket (contoh: #BM-2026-4821)"
+              className="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:border-[#1B365D] focus:outline-hidden text-xs sm:text-sm font-mono uppercase"
+            />
+            <button
+              type="submit"
+              disabled={isSearchingTicket}
+              className="px-4 py-2.5 rounded-xl bg-[#1B365D] hover:bg-[#24477A] text-white font-bold text-xs sm:text-sm transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60"
+            >
+              {isSearchingTicket ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                  <span>Mencari...</span>
+                </>
+              ) : (
+                <>
+                  <Search className="w-4 h-4 text-amber-400" />
+                  <span>Lacak Tiket</span>
+                </>
+              )}
+            </button>
+          </form>
+
+          {ticketSearchError && (
+            <p className="text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2 flex items-center gap-1.5 font-medium">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+              <span>{ticketSearchError}</span>
+            </p>
+          )}
+
+          {trackedTicket && (() => {
+            const tenor = getTenorTimeline(trackedTicket.createdAt);
+            const estimates = calculateListingEstimates(trackedTicket.nettPrice);
+            const progressPercent = Math.min(100, Math.round((tenor.elapsedDays / 30) * 100));
+            return (
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3 animate-in fade-in duration-150">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-1 rounded-lg bg-[#1B365D] text-amber-400 font-mono font-black text-xs">
+                      {trackedTicket.id}
+                    </span>
+                    <div>
+                      <h4 className="font-extrabold text-slate-900 text-xs sm:text-sm">
+                        {trackedTicket.itemNameAndBrand}
+                      </h4>
+                      <span className="text-[11px] text-slate-500">
+                        Kategori: {trackedTicket.category} • Size: {trackedTicket.size || 'All Size'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <span
+                    className={`px-3 py-1 rounded-full text-xs font-extrabold border ${
+                      trackedTicket.status === 'Terjual' || trackedTicket.status === 'Selesai & Dicairkan'
+                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                        : trackedTicket.status === 'Sedang Dipajang (Live)'
+                        ? 'bg-blue-100 text-blue-800 border-blue-300'
+                        : trackedTicket.status === 'Diterima'
+                        ? 'bg-purple-100 text-purple-800 border-purple-300'
+                        : trackedTicket.status === 'Ditolak'
+                        ? 'bg-rose-100 text-rose-800 border-rose-300'
+                        : 'bg-amber-100 text-amber-900 border-amber-300'
+                    }`}
+                  >
+                    {trackedTicket.status}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                  <div className="p-2.5 bg-white rounded-xl border border-slate-200/80">
+                    <span className="text-[10px] text-slate-400 block">Harga Nett Penitip</span>
+                    <strong className="text-slate-800 font-mono">{formatRupiah(trackedTicket.nettPrice)}</strong>
+                  </div>
+                  <div className="p-2.5 bg-white rounded-xl border border-slate-200/80">
+                    <span className="text-[10px] text-slate-400 block">Est. Harga Tayang</span>
+                    <strong className="text-[#1B365D] font-mono">± {formatRupiah(estimates.suggestedListingPrice)}</strong>
+                  </div>
+                  <div className="p-2.5 bg-white rounded-xl border border-slate-200/80 col-span-2 sm:col-span-1">
+                    <span className="text-[10px] text-slate-400 block">Status Masa Titip (Tenor)</span>
+                    <strong className="text-slate-800 flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Hari ke-{tenor.elapsedDays} dari 30 Hari</span>
+                    </strong>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-[11px] text-slate-500">
+                    <span>Progres Masa Titip (Sisa {tenor.remainingDays} hari)</span>
+                    <span className="font-semibold text-slate-700">
+                      Evaluasi H-20: {tenor.day20Date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} • Batas H-30: {tenor.day30Date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${
+                        tenor.isExpired ? 'bg-rose-500' : tenor.isPriceDropPeriod ? 'bg-amber-500' : 'bg-emerald-500'
+                      }`}
+                      style={{ width: `${progressPercent}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setTrackedTicket(null)}
+                    className="text-[11px] text-slate-400 hover:text-slate-600 font-semibold cursor-pointer"
+                  >
+                    Tutup Detail Tiket
+                  </button>
+                  <a
+                    href={`https://wa.me/${ADMIN_CONTACT.whatsappInternational}?text=${encodeURIComponent(
+                      `Halo Admin Esteh, saya ingin menanyakan update untuk Kode Tiket ${trackedTicket.id} (${trackedTicket.itemNameAndBrand}).`
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                    <span>Tanya Admin Esteh (WA)</span>
+                  </a>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+
+        {/* If user selected Etalase Barang Live tab, render LiveCatalogSection */}
+        {publicActiveTab === 'catalog' ? (
+          <LiveCatalogSection
+            items={liveCatalogItems}
+            soldItems={soldCatalogItems}
+            adminWhatsAppNumber={adminPhone}
+            initialSelectedTicketId={initialCatalogTicketId}
+            onSwitchToForm={() => setPublicActiveTab('form')}
+          />
+        ) : (
+          <>
+            {/* Interactive Commission & Listing Price Simulator */}
+            <CommissionSimulator
+              onApplyNettPrice={(nettAmount) => {
+                setNettPriceRaw(nettAmount.toLocaleString('id-ID'));
+                if (errors.nettPrice) {
+                  setErrors({ ...errors, nettPrice: '' });
+                }
+                showAppToast(
+                  `✅ Harga Nett ${formatRupiah(nettAmount)} berhasil diterapkan ke formulir!`
+                );
+              }}
+            />
+
+            {/* Auto-saved Draft Banner if present */}
+        {(hasRestoredDraft || fullName || itemNameAndBrand || descriptionAndFlaws) && (
+          <div className="mb-4 px-4 py-2.5 rounded-xl bg-amber-50/90 border border-amber-200/80 flex items-center justify-between gap-2 text-xs text-amber-900">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>
+                <strong>Auto-Save Draf Aktif:</strong> Isian formulir Anda otomatis tersimpan sementara agar tidak hilang jika halaman ter-refresh.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleResetDraft}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-[11px] shrink-0 cursor-pointer transition-colors"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Reset Form</span>
+            </button>
+          </div>
+        )}
 
         {/* The Consignment Form */}
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -890,6 +1391,8 @@ export default function App() {
             </p>
           </div>
         </form>
+          </>
+        )}
       </main>
 
       {/* Footer Branding & Discreet Admin Link */}
@@ -948,6 +1451,15 @@ export default function App() {
         isOpen={isFAQOpen}
         onClose={() => setIsFAQOpen(false)}
       />
+
+      <OfflineIndicator />
+
+      {appToast && (
+        <div className="fixed bottom-5 right-5 z-50 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 text-xs border border-slate-700">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>{appToast}</span>
+        </div>
+      )}
     </div>
   );
 }

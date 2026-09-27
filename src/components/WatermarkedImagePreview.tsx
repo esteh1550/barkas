@@ -1,196 +1,621 @@
-import React, { useState, useEffect } from 'react';
-import { Download, Sparkles, Check, Loader2, Image as ImageIcon, Eye } from 'lucide-react';
-import { applyWatermark, downloadImageFile } from '../utils/watermark';
+import React, { useEffect, useRef, useState } from 'react';
+import { Download, ChevronLeft, ChevronRight } from 'lucide-react';
+import { formatRupiah } from '../utils/formatters';
 
 interface WatermarkedImagePreviewProps {
   photos: string[];
   itemId: string;
   itemName: string;
+  kecamatan?: string;
+  category?: string;
+  size?: string;
+  condition?: string;
+  listingPrice?: number;
+  originalListingPrice?: number;
+  priceDropText?: string;
+  isSoldStatus?: boolean;
 }
 
 export const WatermarkedImagePreview: React.FC<WatermarkedImagePreviewProps> = ({
   photos,
   itemId,
   itemName,
+  kecamatan,
+  category = 'Preloved',
+  size = 'All Size',
+  condition = 'Siap Pakai',
+  listingPrice,
+  originalListingPrice,
+  priceDropText,
+  isSoldStatus = false,
 }) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [watermarkedUrls, setWatermarkedUrls] = useState<string[]>([]);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [showOriginal, setShowOriginal] = useState(false);
-  const [downloadedIndex, setDownloadedIndex] = useState<number | null>(null);
+  const [stampMode, setStampMode] = useState<'normal' | 'sold' | 'story_poster'>(
+    isSoldStatus ? 'sold' : 'normal'
+  );
+  const [watermarkedDataUrl, setWatermarkedDataUrl] = useState<string | null>(null);
+  const [isRendering, setIsRendering] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
-    let isMounted = true;
+    if (isSoldStatus && stampMode === 'normal') {
+      setStampMode('sold');
+    }
+  }, [isSoldStatus]);
 
-    const processAll = async () => {
-      if (!photos || photos.length === 0) return;
-      setIsProcessing(true);
+  useEffect(() => {
+    if (!photos || photos.length === 0) return;
+    const currentPhoto = photos[selectedIndex] || photos[0];
+    if (!currentPhoto) return;
 
-      try {
-        const promises = photos.map((url) => applyWatermark(url));
-        const results = await Promise.all(promises);
-        if (isMounted) {
-          setWatermarkedUrls(results);
+    setIsRendering(true);
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+
+    img.onload = () => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      // Helper for rounded rect
+      const drawRoundedRect = (
+        x: number,
+        y: number,
+        w: number,
+        h: number,
+        r: number
+      ) => {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+        ctx.lineTo(x + w, y + h - r);
+        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        ctx.lineTo(x + r, y + h);
+        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+        ctx.lineTo(x, y + r);
+        ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.closePath();
+      };
+
+      // Helper for multi-line wrapped text
+      const drawWrappedText = (
+        text: string,
+        x: number,
+        y: number,
+        maxWidth: number,
+        lineHeight: number,
+        maxLines: number = 2
+      ): number => {
+        const words = text.split(' ');
+        let line = '';
+        let currentY = y;
+        let linesDrawn = 0;
+
+        for (let n = 0; n < words.length; n++) {
+          const testLine = line + words[n] + ' ';
+          const metrics = ctx.measureText(testLine);
+          if (metrics.width > maxWidth && n > 0) {
+            linesDrawn++;
+            if (linesDrawn >= maxLines) {
+              ctx.fillText(line.trim() + '...', x, currentY);
+              return currentY + lineHeight;
+            }
+            ctx.fillText(line.trim(), x, currentY);
+            line = words[n] + ' ';
+            currentY += lineHeight;
+          } else {
+            line = testLine;
+          }
         }
-      } catch (err) {
-        console.error('Error applying watermark:', err);
-      } finally {
-        if (isMounted) setIsProcessing(false);
+        ctx.fillText(line.trim(), x, currentY);
+        return currentY + lineHeight;
+      };
+
+      // ============================================================
+      // MODE 3: INSTAGRAM STORY POSTER CARD (9:16 — 1080 x 1920)
+      // ============================================================
+      if (stampMode === 'story_poster') {
+        const W = 1080;
+        const H = 1920;
+        canvas.width = W;
+        canvas.height = H;
+
+        // 1. Deep Botanical Forest Background
+        const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+        bgGrad.addColorStop(0, '#0F291E');
+        bgGrad.addColorStop(0.6, '#133426');
+        bgGrad.addColorStop(1, '#091A13');
+        ctx.fillStyle = bgGrad;
+        ctx.fillRect(0, 0, W, H);
+
+        // 2. Outer Gold Editorial Frame
+        ctx.strokeStyle = 'rgba(245, 158, 11, 0.45)';
+        ctx.lineWidth = 3;
+        drawRoundedRect(44, 44, W - 88, H - 88, 36);
+        ctx.stroke();
+
+        // 3. Top Header Masthead
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#FBBF24';
+        ctx.font = 'bold 24px "Plus Jakarta Sans", system-ui, sans-serif';
+        ctx.fillText('ETALase RESMI BARANG TITIPAN TERKURASI', W / 2, 118);
+
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = '900 48px "Plus Jakarta Sans", system-ui, sans-serif';
+        ctx.fillText('@info.barkasmajalengka', W / 2, 176);
+
+        // Subtle divider line
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(140, 212);
+        ctx.lineTo(W - 140, 212);
+        ctx.stroke();
+
+        // 4. Center Framed Product Image Box (Square 880 x 880)
+        const imgBoxX = 100;
+        const imgBoxY = 250;
+        const imgBoxSize = 880;
+
+        ctx.save();
+        drawRoundedRect(imgBoxX, imgBoxY, imgBoxSize, imgBoxSize, 32);
+        ctx.fillStyle = '#1E293B';
+        ctx.fill();
+        ctx.clip();
+
+        // Object-cover crop into square
+        const scale = Math.max(imgBoxSize / img.width, imgBoxSize / img.height);
+        const drawW = img.width * scale;
+        const drawH = img.height * scale;
+        const drawX = imgBoxX + (imgBoxSize - drawW) / 2;
+        const drawY = imgBoxY + (imgBoxSize - drawH) / 2;
+        ctx.drawImage(img, drawX, drawY, drawW, drawH);
+        ctx.restore();
+
+        // Gold border around photo
+        ctx.strokeStyle = '#F59E0B';
+        ctx.lineWidth = 4;
+        drawRoundedRect(imgBoxX, imgBoxY, imgBoxSize, imgBoxSize, 32);
+        ctx.stroke();
+
+        // Ticket ID Tag on top-left of photo
+        ctx.fillStyle = 'rgba(15, 41, 30, 0.92)';
+        drawRoundedRect(imgBoxX + 24, imgBoxY + 24, 260, 58, 16);
+        ctx.fill();
+        ctx.strokeStyle = '#FBBF24';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.fillStyle = '#FBBF24';
+        ctx.textAlign = 'center';
+        ctx.font = 'bold 26px monospace';
+        ctx.fillText(itemId, imgBoxX + 154, imgBoxY + 62);
+
+        // Price Drop Badge on top-right of photo if active
+        if (priceDropText) {
+          ctx.fillStyle = '#E11D48';
+          drawRoundedRect(imgBoxX + imgBoxSize - 330, imgBoxY + 24, 306, 58, 16);
+          ctx.fill();
+          ctx.fillStyle = '#FFFFFF';
+          ctx.font = '900 24px "Plus Jakarta Sans", system-ui, sans-serif';
+          ctx.fillText(priceDropText, imgBoxX + imgBoxSize - 177, imgBoxY + 61);
+        }
+
+        // 5. Product Specs Card Area below photo
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#FBBF24';
+        ctx.font = 'bold 26px "Plus Jakarta Sans", system-ui, sans-serif';
+        const metaLine = `${category}  ·  Size ${size || 'All Size'}  ·  ${condition}`;
+        ctx.fillText(metaLine, W / 2, 1195);
+
+        // Item Title (1-2 lines)
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = '900 44px "Plus Jakarta Sans", system-ui, sans-serif';
+        const nextY = drawWrappedText(itemName.toUpperCase(), W / 2, 1260, 860, 54, 2);
+
+        // Location Line
+        ctx.fillStyle = '#D6D3D1';
+        ctx.font = '600 28px "Plus Jakarta Sans", system-ui, sans-serif';
+        ctx.fillText(
+          `Lokasi Barang: Kec. ${kecamatan || 'Majalengka'}, Kab. Majalengka`,
+          W / 2,
+          nextY + 18
+        );
+
+        // 6. Prominent Price Box
+        const priceBoxX = 100;
+        const priceBoxY = 1435;
+        const priceBoxW = 880;
+        const priceBoxH = 220;
+
+        ctx.fillStyle = '#F6F3EC';
+        drawRoundedRect(priceBoxX, priceBoxY, priceBoxW, priceBoxH, 28);
+        ctx.fill();
+        ctx.strokeStyle = '#F59E0B';
+        ctx.lineWidth = 4;
+        ctx.stroke();
+
+        ctx.textAlign = 'center';
+        if (originalListingPrice && listingPrice && originalListingPrice > listingPrice) {
+          ctx.fillStyle = '#E11D48';
+          ctx.font = '800 24px "Plus Jakarta Sans", system-ui, sans-serif';
+          ctx.fillText(
+            `HARGA AWAL: ${formatRupiah(originalListingPrice)} (PROMO PRICE DROP)`,
+            W / 2,
+            priceBoxY + 58
+          );
+
+          ctx.fillStyle = '#0F291E';
+          ctx.font = '900 68px monospace';
+          ctx.fillText(formatRupiah(listingPrice), W / 2, priceBoxY + 138);
+        } else {
+          ctx.fillStyle = '#57534E';
+          ctx.font = 'bold 24px "Plus Jakarta Sans", system-ui, sans-serif';
+          ctx.fillText('HARGA ETALASE SIAP PAKAI', W / 2, priceBoxY + 62);
+
+          ctx.fillStyle = '#0F291E';
+          ctx.font = '900 70px monospace';
+          ctx.fillText(
+            listingPrice ? formatRupiah(listingPrice) : 'Cek Caption',
+            W / 2,
+            priceBoxY + 142
+          );
+        }
+
+        ctx.fillStyle = '#047857';
+        ctx.font = 'bold 23px "Plus Jakarta Sans", system-ui, sans-serif';
+        ctx.fillText(
+          'Bisa Rekber Admin Esteh / COD Area Majalengka',
+          W / 2,
+          priceBoxY + 190
+        );
+
+        // 7. Footer Call To Action
+        ctx.fillStyle = '#FBBF24';
+        ctx.font = '800 28px "Plus Jakarta Sans", system-ui, sans-serif';
+        ctx.fillText(
+          'MINAT? BALAS STORY INI ATAU WA ADMIN: 0851-8726-6629',
+          W / 2,
+          1745
+        );
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+        ctx.font = '500 22px "Plus Jakarta Sans", system-ui, sans-serif';
+        ctx.fillText(
+          `Sebutkan Kode Tiket ${itemId} saat menghubungi Admin Esteh`,
+          W / 2,
+          1795
+        );
+
+        setWatermarkedDataUrl(canvas.toDataURL('image/jpeg', 0.92));
+        setIsRendering(false);
+        return;
       }
+
+      // ============================================================
+      // MODE 1 & 2: STANDARD 1:1 / PHOTO WATERMARK & SOLD OUT STAMP
+      // ============================================================
+      const targetWidth = Math.max(img.width, 800);
+      const scaleRatio = targetWidth / img.width;
+      const targetHeight = Math.round(img.height * scaleRatio);
+
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+
+      // 1. Draw Original Image
+      ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+
+      // 2. Bottom Gradient Scrim for legibility
+      const barHeight = Math.max(Math.round(targetHeight * 0.085), 54);
+      const gradient = ctx.createLinearGradient(0, targetHeight - barHeight * 1.6, 0, targetHeight);
+      gradient.addColorStop(0, 'rgba(15, 23, 42, 0)');
+      gradient.addColorStop(0.5, 'rgba(15, 41, 30, 0.78)');
+      gradient.addColorStop(1, 'rgba(15, 41, 30, 0.95)');
+
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, targetHeight - barHeight * 1.6, targetWidth, barHeight * 1.6);
+
+      // 3. Gold Accent Line at very bottom
+      const accentHeight = Math.max(Math.round(targetHeight * 0.008), 5);
+      ctx.fillStyle = '#F59E0B';
+      ctx.fillRect(0, targetHeight - accentHeight, targetWidth, accentHeight);
+
+      const paddingX = Math.round(targetWidth * 0.035);
+      const centerY = targetHeight - Math.round(barHeight * 0.45);
+
+      // 4. Left Text: @info.barkasmajalengka + Kecamatan
+      const fontSizeBrand = Math.max(Math.round(targetWidth * 0.025), 16);
+      ctx.font = `bold ${fontSizeBrand}px "Plus Jakarta Sans", system-ui, -apple-system, sans-serif`;
+      ctx.fillStyle = '#FFFFFF';
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'left';
+
+      const leftLabel = kecamatan
+        ? `@info.barkasmajalengka  •  COD ${kecamatan}`
+        : '@info.barkasmajalengka  •  Titip Jual Majalengka';
+      ctx.fillText(leftLabel, paddingX, centerY);
+
+      // 5. Right Pill Badge: Ticket ID (#BM-2026-XXXX)
+      const fontSizeTicket = Math.max(Math.round(targetWidth * 0.022), 14);
+      ctx.font = `bold ${fontSizeTicket}px monospace`;
+      const ticketText = `${itemId}`;
+      const textMetrics = ctx.measureText(ticketText);
+      const badgePadX = Math.round(fontSizeTicket * 0.7);
+      const badgePadY = Math.round(fontSizeTicket * 0.45);
+      const badgeW = textMetrics.width + badgePadX * 2;
+      const badgeH = fontSizeTicket + badgePadY * 2;
+      const badgeX = targetWidth - paddingX - badgeW;
+      const badgeY = centerY - badgeH / 2;
+
+      ctx.fillStyle = 'rgba(245, 158, 11, 0.22)';
+      ctx.strokeStyle = '#FBBF24';
+      ctx.lineWidth = 2;
+      drawRoundedRect(badgeX, badgeY, badgeW, badgeH, 8);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#FDE68A';
+      ctx.textAlign = 'center';
+      ctx.fillText(ticketText, badgeX + badgeW / 2, centerY);
+
+      // 6. Top-Left Price Drop Badge (if item has active price drop & not in sold mode)
+      if (priceDropText && stampMode === 'normal') {
+        const dropFontSize = Math.max(Math.round(targetWidth * 0.024), 16);
+        ctx.font = `900 ${dropFontSize}px "Plus Jakarta Sans", system-ui, sans-serif`;
+        const dropLabel = `${priceDropText}`;
+        const dropMetrics = ctx.measureText(dropLabel);
+        const dropW = dropMetrics.width + dropFontSize * 1.6;
+        const dropH = dropFontSize * 2.0;
+        const dropX = paddingX;
+        const dropY = paddingX;
+
+        ctx.fillStyle = 'rgba(225, 29, 72, 0.94)';
+        ctx.strokeStyle = '#FECDD3';
+        ctx.lineWidth = 2.5;
+        drawRoundedRect(dropX, dropY, dropW, dropH, 12);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#FFFFFF';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(dropLabel, dropX + dropW / 2, dropY + dropH / 2);
+      }
+
+      // 7. Diagonal "TERJUAL / SOLD OUT" Stamp Overlay (when stampMode === 'sold')
+      if (stampMode === 'sold') {
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.48)';
+        ctx.fillRect(0, 0, targetWidth, targetHeight - barHeight * 1.1);
+
+        ctx.save();
+        ctx.translate(targetWidth / 2, targetHeight / 2 - barHeight * 0.3);
+        ctx.rotate((-16 * Math.PI) / 180);
+
+        const stampW = Math.round(targetWidth * 0.78);
+        const stampH = Math.round(targetWidth * 0.22);
+
+        ctx.fillStyle = 'rgba(220, 38, 38, 0.92)';
+        ctx.strokeStyle = '#FEF08A';
+        ctx.lineWidth = Math.max(Math.round(targetWidth * 0.008), 5);
+        drawRoundedRect(-stampW / 2, -stampH / 2, stampW, stampH, 18);
+        ctx.fill();
+        ctx.stroke();
+
+        const innerInset = Math.max(Math.round(targetWidth * 0.012), 8);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.65)';
+        ctx.lineWidth = 2;
+        drawRoundedRect(
+          -stampW / 2 + innerInset,
+          -stampH / 2 + innerInset,
+          stampW - innerInset * 2,
+          stampH - innerInset * 2,
+          12
+        );
+        ctx.stroke();
+
+        const mainStampFont = Math.max(Math.round(targetWidth * 0.072), 36);
+        ctx.font = `900 ${mainStampFont}px "Plus Jakarta Sans", system-ui, sans-serif`;
+        ctx.fillStyle = '#FFFFFF';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('TERJUAL / SOLD', 0, -Math.round(stampH * 0.11));
+
+        const subStampFont = Math.max(Math.round(targetWidth * 0.025), 14);
+        ctx.font = `bold ${subStampFont}px "Plus Jakarta Sans", system-ui, sans-serif`;
+        ctx.fillStyle = '#FEF08A';
+        ctx.fillText('ALHAMDULILLAH • @info.barkasmajalengka', 0, Math.round(stampH * 0.26));
+
+        ctx.restore();
+      }
+
+      setWatermarkedDataUrl(canvas.toDataURL('image/jpeg', 0.9));
+      setIsRendering(false);
     };
 
-    processAll();
-
-    return () => {
-      isMounted = false;
+    img.onerror = () => {
+      setWatermarkedDataUrl(currentPhoto);
+      setIsRendering(false);
     };
-  }, [photos]);
+
+    img.src = currentPhoto;
+  }, [
+    photos,
+    selectedIndex,
+    itemId,
+    itemName,
+    kecamatan,
+    category,
+    size,
+    condition,
+    listingPrice,
+    originalListingPrice,
+    priceDropText,
+    stampMode,
+  ]);
+
+  const handleDownloadWatermarked = () => {
+    if (!watermarkedDataUrl) return;
+    const cleanName = itemName.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 25);
+    const cleanTicket = itemId.replace('#', '');
+    const suffix =
+      stampMode === 'sold'
+        ? '_TERJUAL'
+        : stampMode === 'story_poster'
+        ? '_IG_STORY_9x16'
+        : `_Foto_${selectedIndex + 1}`;
+    const link = document.createElement('a');
+    link.href = watermarkedDataUrl;
+    link.download = `BarkasMJL_${cleanTicket}_${cleanName}${suffix}.jpg`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   if (!photos || photos.length === 0) {
     return (
-      <div className="h-48 rounded-2xl bg-slate-100 flex flex-col items-center justify-center text-slate-400 text-xs">
-        <ImageIcon className="w-8 h-8 mb-1 stroke-1" />
-        <span>Tidak ada foto barang</span>
+      <div className="aspect-square rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 text-xs">
+        Tidak ada foto tersedia
       </div>
     );
   }
 
-  const currentOriginal = photos[selectedIndex];
-  const currentWatermarked = watermarkedUrls[selectedIndex] || currentOriginal;
-  const activeImage = showOriginal ? currentOriginal : currentWatermarked;
-
-  const handleDownloadCurrent = () => {
-    const safeName = itemName.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 25);
-    const filename = `barkasmajalengka_${itemId.replace('#', '')}_${safeName}_foto-${selectedIndex + 1}.jpg`;
-    downloadImageFile(currentWatermarked, filename);
-    setDownloadedIndex(selectedIndex);
-    setTimeout(() => setDownloadedIndex(null), 2500);
-  };
-
-  const handleDownloadAll = async () => {
-    for (let i = 0; i < watermarkedUrls.length; i++) {
-      const url = watermarkedUrls[i];
-      const safeName = itemName.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 25);
-      const filename = `barkasmajalengka_${itemId.replace('#', '')}_${safeName}_foto-${i + 1}.jpg`;
-      downloadImageFile(url, filename);
-      // Brief pause between browser downloads
-      await new Promise((r) => setTimeout(r, 300));
-    }
-  };
-
   return (
-    <div className="space-y-3">
-      {/* Main Preview Container */}
-      <div className="relative aspect-4/3 rounded-2xl overflow-hidden bg-slate-900 shadow-md border border-slate-200 group">
-        <img
-          src={activeImage}
-          alt={`${itemName} - Foto ${selectedIndex + 1}`}
-          className="w-full h-full object-contain bg-slate-950/90 transition-all duration-200"
-        />
+    <div className="space-y-2.5">
+      {/* Hidden Canvas for Watermark Processing */}
+      <canvas ref={canvasRef} className="hidden" />
 
-        {/* Loading Spinner overlay */}
-        {isProcessing && (
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center text-white text-xs gap-2">
-            <Loader2 className="w-5 h-5 animate-spin text-amber-400" />
-            <span>Memproses Watermark...</span>
+      {/* Mode Switcher: Watermark Feed vs Stempel SOLD OUT vs Poster IG Story (9:16) */}
+      <div className="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+        <button
+          type="button"
+          onClick={() => setStampMode('normal')}
+          className={`py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap truncate ${
+            stampMode === 'normal'
+              ? 'bg-[#1B365D] text-white shadow-2xs'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          Feed (1:1)
+        </button>
+        <button
+          type="button"
+          onClick={() => setStampMode('story_poster')}
+          className={`py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap truncate ${
+            stampMode === 'story_poster'
+              ? 'bg-amber-500 text-stone-950 shadow-2xs'
+              : 'text-slate-600 hover:text-amber-800'
+          }`}
+        >
+          Poster Story (9:16)
+        </button>
+        <button
+          type="button"
+          onClick={() => setStampMode('sold')}
+          className={`py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap truncate ${
+            stampMode === 'sold'
+              ? 'bg-rose-600 text-white shadow-2xs'
+              : 'text-slate-600 hover:text-rose-700'
+          }`}
+        >
+          Stempel SOLD
+        </button>
+      </div>
+
+      {/* Main Preview Box */}
+      <div
+        className={`relative rounded-2xl overflow-hidden bg-slate-900 border border-slate-200 shadow-inner group ${
+          stampMode === 'story_poster' ? 'aspect-[9/16] max-h-[420px] mx-auto' : 'aspect-square'
+        }`}
+      >
+        {watermarkedDataUrl ? (
+          <img
+            src={watermarkedDataUrl}
+            alt={`${itemName} - Foto ${selectedIndex + 1}`}
+            className="w-full h-full object-contain bg-slate-950"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-slate-400 text-xs">
+            Memproses Gambar...
           </div>
         )}
 
-        {/* Top Badges */}
-        <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
-          <span className="px-2.5 py-1 rounded-lg bg-black/70 backdrop-blur-md text-white text-[11px] font-semibold border border-white/10">
+        {/* Top Left Counter */}
+        <div className="absolute top-3 left-3 flex items-center gap-1.5">
+          <span className="px-2.5 py-1 rounded-full bg-slate-900/75 backdrop-blur-md text-white font-bold text-[11px] border border-white/15">
             Foto {selectedIndex + 1} / {photos.length}
           </span>
-
-          {!showOriginal && (
-            <span className="px-2.5 py-1 rounded-lg bg-amber-500/90 text-slate-950 text-[11px] font-bold shadow-xs flex items-center gap-1">
-              <Sparkles className="w-3 h-3 text-slate-950" />
-              <span>Watermark Aktif</span>
-            </span>
-          )}
         </div>
 
-        {/* Top Right Toggle: Original vs Watermark Preview */}
-        <div className="absolute top-2.5 right-2.5">
-          <button
-            type="button"
-            onClick={() => setShowOriginal(!showOriginal)}
-            className="px-2.5 py-1 rounded-lg bg-black/70 hover:bg-black/90 text-white text-[11px] font-medium backdrop-blur-md border border-white/20 transition-all cursor-pointer flex items-center gap-1"
-            title="Bandingkan dengan foto asli tanpa watermark"
-          >
-            <Eye className="w-3 h-3 text-amber-300" />
-            <span>{showOriginal ? 'Lihat Watermark' : 'Lihat Asli'}</span>
-          </button>
-        </div>
-
-        {/* Bottom Download Overlay Button */}
-        <div className="absolute bottom-2.5 right-2.5 left-2.5 flex items-center justify-between pointer-events-none">
-          <span className="text-[10px] text-white/70 bg-black/60 px-2 py-1 rounded-md pointer-events-auto backdrop-blur-xs">
-            Format Siap Post Instagram
-          </span>
-
-          <button
-            type="button"
-            onClick={handleDownloadCurrent}
-            className="pointer-events-auto flex items-center gap-1.5 px-3.5 py-2 bg-amber-400 hover:bg-amber-300 active:scale-95 text-[#1B365D] font-extrabold text-xs rounded-xl shadow-lg transition-all cursor-pointer"
-          >
-            {downloadedIndex === selectedIndex ? (
-              <>
-                <Check className="w-4 h-4 text-emerald-800" />
-                <span>Foto Terunduh!</span>
-              </>
-            ) : (
-              <>
-                <Download className="w-4 h-4 text-[#1B365D]" />
-                <span>Download Foto Watermark</span>
-              </>
-            )}
-          </button>
-        </div>
+        {/* Navigation Arrows if multiple photos */}
+        {photos.length > 1 && (
+          <>
+            <button
+              type="button"
+              onClick={() =>
+                setSelectedIndex((prev) => (prev === 0 ? photos.length - 1 : prev - 1))
+              }
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-slate-900/70 hover:bg-slate-900 text-white flex items-center justify-center transition-all cursor-pointer border border-white/20"
+              title="Foto Sebelumnya"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                setSelectedIndex((prev) => (prev === photos.length - 1 ? 0 : prev + 1))
+              }
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-slate-900/70 hover:bg-slate-900 text-white flex items-center justify-center transition-all cursor-pointer border border-white/20"
+              title="Foto Berikutnya"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </>
+        )}
       </div>
 
-      {/* Thumbnails Row */}
+      {/* Thumbnail Strip + Download Watermarked Button */}
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 overflow-x-auto py-1 scrollbar-none flex-1">
-          {photos.map((photo, idx) => {
-            const isSelected = selectedIndex === idx;
-            const thumbUrl = watermarkedUrls[idx] || photo;
-
-            return (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => setSelectedIndex(idx)}
-                className={`relative w-14 h-14 rounded-xl overflow-hidden shrink-0 border-2 transition-all cursor-pointer ${
-                  isSelected
-                    ? 'border-amber-400 ring-2 ring-amber-400/40 scale-105 shadow-sm'
-                    : 'border-slate-200 hover:border-[#1B365D] opacity-75 hover:opacity-100'
-                }`}
-              >
-                <img
-                  src={thumbUrl}
-                  alt={`Thumbnail ${idx + 1}`}
-                  className="w-full h-full object-cover"
-                />
-                <span className="absolute bottom-0.5 right-0.5 px-1 bg-black/70 text-white text-[9px] font-bold rounded">
-                  #{idx + 1}
-                </span>
-              </button>
-            );
-          })}
+        <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
+          {photos.map((thumb, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => setSelectedIndex(idx)}
+              className={`w-11 h-11 rounded-xl overflow-hidden border-2 transition-all shrink-0 cursor-pointer ${
+                selectedIndex === idx
+                  ? 'border-[#1B365D] scale-105 shadow-xs'
+                  : 'border-slate-200 opacity-60 hover:opacity-100'
+              }`}
+            >
+              <img src={thumb} alt={`Thumb ${idx + 1}`} className="w-full h-full object-cover" />
+            </button>
+          ))}
         </div>
 
-        {photos.length > 1 && (
-          <button
-            type="button"
-            onClick={handleDownloadAll}
-            className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold rounded-xl border border-slate-300 transition-colors shrink-0 flex items-center gap-1 cursor-pointer"
-            title="Download seluruh foto ber-watermark sekaligus"
-          >
-            <Download className="w-3.5 h-3.5 text-[#1B365D]" />
-            <span className="hidden sm:inline">Download Semua ({photos.length})</span>
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={handleDownloadWatermarked}
+          disabled={isRendering || !watermarkedDataUrl}
+          className={`flex items-center gap-1.5 px-3 py-2 text-white font-bold text-xs rounded-xl shadow-xs transition-all shrink-0 cursor-pointer disabled:opacity-50 ${
+            stampMode === 'sold'
+              ? 'bg-rose-600 hover:bg-rose-700'
+              : stampMode === 'story_poster'
+              ? 'bg-amber-600 hover:bg-amber-700'
+              : 'bg-[#1B365D] hover:bg-[#24477A]'
+          }`}
+          title="Unduh Gambar Siap Posting"
+        >
+          <Download className="w-3.5 h-3.5 text-amber-300" />
+          <span>
+            {stampMode === 'sold'
+              ? 'Unduh Stempel SOLD'
+              : stampMode === 'story_poster'
+              ? 'Unduh Poster Story (9:16)'
+              : `Unduh Foto #${selectedIndex + 1}`}
+          </span>
+        </button>
       </div>
     </div>
   );

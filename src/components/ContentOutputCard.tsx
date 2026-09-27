@@ -13,14 +13,17 @@ import {
   ExternalLink,
   QrCode,
   FileText,
-  Trash2
+  Trash2,
+  CheckCircle2,
+  TrendingDown
 } from 'lucide-react';
 import { ConsignmentItem, AdminPostStatus, SubmissionStatus } from '../types/consignment';
 import { formatRupiah, calculateListingEstimates, getTenorTimeline } from '../utils/formatters';
 import { 
   generateInstagramFeedCaption, 
   generateInstagramStoryCaption, 
-  generatePenitipConfirmationWhatsAppUrl 
+  generatePenitipConfirmationWhatsAppUrl,
+  generatePriceDropWhatsAppUrl
 } from '../utils/captionGenerator';
 import { WatermarkedImagePreview } from './WatermarkedImagePreview';
 
@@ -31,6 +34,9 @@ interface ContentOutputCardProps {
   onDelete: (id: string) => void;
   onOpenQR: (item: ConsignmentItem) => void;
   onDownloadPDF: (item: ConsignmentItem) => void;
+  onOpenPayoutReceipt?: (item: ConsignmentItem) => void;
+  onOpenBuyerInvoice?: (item: ConsignmentItem) => void;
+  onOpenEditPrice?: (item: ConsignmentItem) => void;
 }
 
 const POST_STATUSES: { value: AdminPostStatus; label: string; badge: string; border: string }[] = [
@@ -47,12 +53,24 @@ export const ContentOutputCard: React.FC<ContentOutputCardProps> = ({
   onDelete,
   onOpenQR,
   onDownloadPDF,
+  onOpenPayoutReceipt,
+  onOpenBuyerInvoice,
+  onOpenEditPrice,
 }) => {
   const [captionTab, setCaptionTab] = useState<'feed' | 'story'>('feed');
   const [isCopied, setIsCopied] = useState(false);
+  const [isCopiedLink, setIsCopiedLink] = useState(false);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 
   const estimates = calculateListingEstimates(item.nettPrice);
+  const hasPriceDrop =
+    typeof item.previousNettPrice === 'number' && item.previousNettPrice > item.nettPrice;
+  const prevEstimates = hasPriceDrop
+    ? calculateListingEstimates(item.previousNettPrice!)
+    : null;
+  const discountPct = hasPriceDrop
+    ? Math.round(((item.previousNettPrice! - item.nettPrice) / item.previousNettPrice!) * 100)
+    : 0;
   const tenor = getTenorTimeline(item.createdAt);
 
   const feedCaption = generateInstagramFeedCaption(item);
@@ -76,19 +94,35 @@ export const ContentOutputCard: React.FC<ContentOutputCardProps> = ({
   };
 
   const confirmationWaUrl = generatePenitipConfirmationWhatsAppUrl(item);
+  const priceDropWaUrl = generatePriceDropWhatsAppUrl(item);
 
   return (
     <div className="bg-white rounded-3xl border-2 border-slate-200 shadow-sm hover:shadow-md hover:border-[#1B365D]/40 transition-all overflow-hidden">
       {/* Top Card Header */}
       <div className="bg-[#1B365D] text-white p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3 border-b-2 border-amber-400">
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 flex-wrap">
           <span className="px-2.5 py-1 rounded-lg bg-amber-400 text-[#1B365D] font-mono font-black text-xs">
             {item.id}
           </span>
           <div>
-            <h3 className="font-extrabold text-sm sm:text-base leading-tight">
-              {item.itemNameAndBrand}
-            </h3>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="font-extrabold text-sm sm:text-base leading-tight">
+                {item.itemNameAndBrand}
+              </h3>
+              {tenor.isExpired ? (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500 text-white border border-rose-300">
+                  🚨 Hari ke-{tenor.elapsedDays}: Tenor 30 Hari Habis
+                </span>
+              ) : tenor.isPriceDropPeriod ? (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400 text-[#1B365D] border border-amber-200">
+                  ⚠️ Hari ke-{tenor.elapsedDays}/30: Waktunya Opsi Price Drop
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white/15 text-amber-200 border border-white/20">
+                  ⏳ Hari ke-{tenor.elapsedDays}/30 (Sisa {tenor.remainingDays} hari)
+                </span>
+              )}
+            </div>
             <span className="text-[11px] text-amber-200/90">
               Kategori: {item.category} • Domisili: Kec. {item.kecamatan}
             </span>
@@ -166,9 +200,8 @@ export const ContentOutputCard: React.FC<ContentOutputCardProps> = ({
         {/* LEFT COLUMN: Watermarked Photos Studio (5 Cols) */}
         <div className="lg:col-span-5 space-y-3">
           <div className="flex items-center justify-between pb-1">
-            <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-              <Sparkles className="w-4 h-4 text-amber-500" />
-              <span>Foto Ber-Watermark Otomatis</span>
+            <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+              Studio Foto, Poster Story & Stempel
             </span>
 
             <span className="text-[11px] text-slate-500">
@@ -181,13 +214,47 @@ export const ContentOutputCard: React.FC<ContentOutputCardProps> = ({
             photos={item.photos || []}
             itemId={item.id}
             itemName={item.itemNameAndBrand}
+            kecamatan={item.kecamatan}
+            category={item.category}
+            size={item.size}
+            condition={item.condition}
+            listingPrice={estimates.suggestedListingPrice}
+            originalListingPrice={prevEstimates?.suggestedListingPrice}
+            priceDropText={hasPriceDrop ? `TURUN HARGA -${discountPct}%` : undefined}
+            isSoldStatus={
+              item.status === 'Terjual' ||
+              item.status === 'Selesai & Dicairkan' ||
+              currentPostStatus === 'Sold Out'
+            }
           />
 
           {/* Pricing Summary Box */}
           <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2 text-xs">
-            <div className="flex items-center justify-between font-bold">
-              <span className="text-slate-500">Harga Nett Penitip:</span>
-              <span className="text-slate-800 font-mono text-sm">{formatRupiah(item.nettPrice)}</span>
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-slate-600">
+                {hasPriceDrop ? 'Harga Nett Promo:' : 'Harga Nett Penitip:'}
+              </span>
+              <div className="flex items-center gap-2">
+                {hasPriceDrop && (
+                  <span className="text-[11px] font-mono text-slate-400 line-through">
+                    {formatRupiah(item.previousNettPrice!)}
+                  </span>
+                )}
+                <span className="text-slate-900 font-mono font-extrabold text-sm">
+                  {formatRupiah(item.nettPrice)}
+                </span>
+                {onOpenEditPrice && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenEditPrice(item)}
+                    className="px-2 py-0.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-colors"
+                    title="Edit Harga / Aktifkan Promo Price Drop"
+                  >
+                    <TrendingDown className="w-3 h-3" />
+                    <span>Edit Harga</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="flex items-center justify-between text-slate-500">
@@ -197,7 +264,16 @@ export const ContentOutputCard: React.FC<ContentOutputCardProps> = ({
 
             <div className="flex items-center justify-between pt-1.5 border-t border-slate-200 font-black text-sm">
               <span className="text-[#1B365D]">Harga Jual Feed (Tayang):</span>
-              <span className="text-emerald-700 font-mono text-base">{formatRupiah(estimates.suggestedListingPrice)}</span>
+              <div className="text-right">
+                {prevEstimates && (
+                  <span className="text-[11px] font-mono text-slate-400 line-through mr-2">
+                    {formatRupiah(prevEstimates.suggestedListingPrice)}
+                  </span>
+                )}
+                <span className="text-emerald-700 font-mono text-base">
+                  {formatRupiah(estimates.suggestedListingPrice)}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -301,15 +377,75 @@ export const ContentOutputCard: React.FC<ContentOutputCardProps> = ({
                 <span>Rek/E-Wallet: <strong>{item.bankAccount}</strong></span>
               </div>
 
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <a
+                  href={priceDropWaUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-semibold rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
+                  title="Kirim WA Opsi Turun Harga (Hari ke-20)"
+                >
+                  <Clock className="w-3.5 h-3.5 text-amber-700" />
+                  <span>WA Price Drop (H-20)</span>
+                </a>
+
+                {onOpenPayoutReceipt && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenPayoutReceipt(item)}
+                    className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 text-xs font-bold rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
+                    title="Buat Kwitansi Pencairan Dana Lunas (PDF & WA)"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
+                    <span>Kwitansi Cair</span>
+                  </button>
+                )}
+
+                {onOpenBuyerInvoice && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenBuyerInvoice(item)}
+                    className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-300 text-xs font-bold rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
+                    title="Cetak Nota Pembelian / Invoice COD & Rekber (PDF)"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-blue-700" />
+                    <span>Nota Pembeli</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const cleanTicket = item.id.replace(/^#/, '');
+                    const url = `${window.location.origin}/?item=${encodeURIComponent(cleanTicket)}`;
+                    navigator.clipboard.writeText(url);
+                    setIsCopiedLink(true);
+                    setTimeout(() => setIsCopiedLink(false), 2500);
+                  }}
+                  className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
+                  title="Salin Link Etalase Barang Ini (Untuk IG Story Link)"
+                >
+                  {isCopiedLink ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Link Tersalin</span>
+                    </>
+                  ) : (
+                    <>
+                      <Share2 className="w-3.5 h-3.5 text-[#1B365D]" />
+                      <span>Link Etalase</span>
+                    </>
+                  )}
+                </button>
+
                 <button
                   type="button"
                   onClick={() => onOpenQR(item)}
                   className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
-                  title="Lihat Kode QR"
+                  title="Lihat Kode QR & Cetak Label Hangtag Gudang"
                 >
                   <QrCode className="w-3.5 h-3.5 text-amber-700" />
-                  <span>QR</span>
+                  <span>QR & Hangtag</span>
                 </button>
 
                 <button

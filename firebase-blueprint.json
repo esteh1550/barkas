@@ -1,0 +1,143 @@
+{
+  "entities": {
+    "ConsignmentItem": {
+      "title": "ConsignmentItem",
+      "description": "Data pengajuan titip jual barang bekas berkualitas di info.barkasmajalengka",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Kode tiket unik pengajuan (contoh: #BM-2026-1234)"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu pengajuan dibuat dalam format ISO string"
+        },
+        "fullName": {
+          "type": "string",
+          "description": "Nama lengkap penitip barang"
+        },
+        "whatsappNumber": {
+          "type": "string",
+          "description": "Nomor WhatsApp aktif penitip"
+        },
+        "kecamatan": {
+          "type": "string",
+          "description": "Kecamatan domisili di Kabupaten Majalengka"
+        },
+        "bankAccount": {
+          "type": "string",
+          "description": "Nomor rekening bank atau E-Wallet untuk pencairan dana"
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "Fashion",
+            "Sneakers / Sepatu",
+            "Helm & Otomotif",
+            "Gadget & Elektronik",
+            "Lainnya"
+          ],
+          "description": "Kategori barang titip jual"
+        },
+        "itemNameAndBrand": {
+          "type": "string",
+          "description": "Nama barang beserta merk/brand"
+        },
+        "size": {
+          "type": "string",
+          "description": "Ukuran atau dimensi barang"
+        },
+        "condition": {
+          "type": "string",
+          "enum": [
+            "Baru / BNIB",
+            "Seperti Baru / Like New",
+            "Bekas Pemakaian Wajar",
+            "Ada Minus"
+          ],
+          "description": "Kondisi fisik barang"
+        },
+        "descriptionAndFlaws": {
+          "type": "string",
+          "description": "Spesifikasi lengkap, kelengkapan, dan detail minus barang"
+        },
+        "nettPrice": {
+          "type": "number",
+          "description": "Harga bersih (nett) yang diinginkan penitip dalam Rupiah"
+        },
+        "previousNettPrice": {
+          "type": "number",
+          "description": "Harga bersih (nett) sebelumnya sebelum penyesuaian turun harga (Price Drop)"
+        },
+        "photos": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Daftar foto barang dalam format Data URL (Base64 terkompresi)"
+        },
+        "agreementAccepted": {
+          "type": "boolean",
+          "description": "Persetujuan syarat dan ketentuan titip jual"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "Menunggu Kurasi",
+            "Diterima",
+            "Ditolak",
+            "Sedang Dipajang (Live)",
+            "Terjual",
+            "Selesai & Dicairkan"
+          ],
+          "description": "Status kurasi dan penjualan barang"
+        },
+        "postStatus": {
+          "type": "string",
+          "enum": [
+            "Draft",
+            "Ready to Post",
+            "Posted",
+            "Sold Out"
+          ],
+          "description": "Status progres pembuatan konten postingan admin"
+        },
+        "syncedToGoogleForms": {
+          "type": "boolean",
+          "description": "Penanda apakah sudah disinkronkan ke Google Forms"
+        },
+        "googleFormId": {
+          "type": "string",
+          "description": "ID Google Form terkait"
+        }
+      },
+      "required": [
+        "id",
+        "createdAt",
+        "fullName",
+        "whatsappNumber",
+        "kecamatan",
+        "bankAccount",
+        "category",
+        "itemNameAndBrand",
+        "size",
+        "condition",
+        "descriptionAndFlaws",
+        "nettPrice",
+        "photos",
+        "agreementAccepted",
+        "status"
+      ]
+    }
+  },
+  "firestore": {
+    "/submissions/{submissionId}": {
+      "schema": {
+        "$ref": "#/entities/ConsignmentItem"
+      },
+      "description": "Koleksi data pengajuan titip jual barang secara real-time lintas perangkat"
+    }
+  }
+}
