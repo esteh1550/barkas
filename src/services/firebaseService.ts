@@ -1,6 +1,9 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
+  initializeFirestore,
   getFirestore,
+  setLogLevel,
+  Firestore,
   collection,
   doc,
   getDoc,
@@ -16,12 +19,40 @@ import {
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { auth } from './googleAuth';
-import { ConsignmentItem, SubmissionStatus, AdminPostStatus } from '../types/consignment';
+import {
+  ConsignmentItem,
+  SubmissionStatus,
+  AdminPostStatus,
+  WantedRequest,
+  WantedRequestStatus,
+} from '../types/consignment';
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+
+// Silence internal WebChannel fallback probe errors in iframe/proxy environments
+try {
+  setLogLevel('silent');
+} catch {
+  // ignore
+}
+
+let firestoreInstance: Firestore;
+try {
+  firestoreInstance = initializeFirestore(
+    app,
+    {
+      experimentalAutoDetectLongPolling: true,
+    },
+    firebaseConfig.firestoreDatabaseId
+  );
+} catch {
+  firestoreInstance = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+}
+
+export const db = firestoreInstance;
 
 const SUBMISSIONS_COLLECTION = 'submissions';
+const WANTED_COLLECTION = 'wanted_requests';
 
 export enum OperationType {
   CREATE = 'create',
@@ -75,7 +106,16 @@ export function handleFirestoreError(
     operationType,
     path,
   };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  const lowerMsg = errInfo.error.toLowerCase();
+  if (
+    lowerMsg.includes('unavailable') ||
+    lowerMsg.includes('client is offline') ||
+    lowerMsg.includes('could not reach cloud firestore')
+  ) {
+    console.warn('Firestore operating in offline/fallback mode:', errInfo.error);
+  } else {
+    console.error('Firestore Error: ', JSON.stringify(errInfo));
+  }
   return errInfo;
 }
 
@@ -92,21 +132,22 @@ export const getSubmissionDocId = (ticketId: string): string => {
 const sanitizeConsignmentItemForFirestore = (
   item: ConsignmentItem
 ): Record<string, unknown> => {
+  const rawWa = (item.whatsappNumber || '').trim();
   const clean: Record<string, unknown> = {
-    id: item.id,
-    createdAt: item.createdAt,
-    fullName: item.fullName,
-    whatsappNumber: item.whatsappNumber,
-    kecamatan: item.kecamatan,
-    bankAccount: item.bankAccount,
-    category: item.category,
-    itemNameAndBrand: item.itemNameAndBrand,
-    size: item.size || 'All Size',
-    condition: item.condition,
-    descriptionAndFlaws: item.descriptionAndFlaws,
-    nettPrice: Number(item.nettPrice) || 0,
-    photos: Array.isArray(item.photos) ? item.photos : [],
-    agreementAccepted: Boolean(item.agreementAccepted),
+    id: (item.id || '#BM-2026-0000').slice(0, 50),
+    createdAt: item.createdAt || new Date().toISOString(),
+    fullName: (item.fullName || 'Penitip').trim().slice(0, 150) || 'Penitip',
+    whatsappNumber: (rawWa.length >= 5 ? rawWa : '0800000000').slice(0, 35),
+    kecamatan: (item.kecamatan || 'Majalengka').trim().slice(0, 100) || 'Majalengka',
+    bankAccount: (item.bankAccount || '-').trim().slice(0, 250) || '-',
+    category: item.category || 'Lainnya',
+    itemNameAndBrand: (item.itemNameAndBrand || 'Barang Titipan').trim().slice(0, 250) || 'Barang Titipan',
+    size: (item.size || 'All Size').trim().slice(0, 100) || 'All Size',
+    condition: item.condition || 'Bekas Pemakaian Wajar',
+    descriptionAndFlaws: (item.descriptionAndFlaws || '-').trim().slice(0, 4000) || '-',
+    nettPrice: Math.max(1, Math.min(1000000000, Number(item.nettPrice) || 10000)),
+    photos: Array.isArray(item.photos) && item.photos.length > 0 ? item.photos.slice(0, 8) : ['https://placehold.co/600x600?text=Barkas+Majalengka'],
+    agreementAccepted: Boolean(item.agreementAccepted ?? true),
     status: item.status || 'Menunggu Kurasi',
   };
 
@@ -121,6 +162,15 @@ const sanitizeConsignmentItemForFirestore = (
   }
   if (item.googleFormId) {
     clean.googleFormId = item.googleFormId;
+  }
+  if (typeof item.adminRackLocation === 'string') {
+    clean.adminRackLocation = item.adminRackLocation.trim().slice(0, 120);
+  }
+  if (typeof item.adminBottomNettPrice === 'number' && item.adminBottomNettPrice >= 0) {
+    clean.adminBottomNettPrice = Number(item.adminBottomNettPrice);
+  }
+  if (typeof item.adminInternalNotes === 'string') {
+    clean.adminInternalNotes = item.adminInternalNotes.trim().slice(0, 2000);
   }
 
   return clean;
@@ -250,6 +300,38 @@ export const updateSubmissionPriceInFirebase = async (
 };
 
 /**
+ * Update a submission's internal admin notes, rack location, and bottom nett price
+ */
+export const updateSubmissionAdminNotesInFirebase = async (
+  ticketId: string,
+  notesPayload: {
+    adminRackLocation?: string;
+    adminBottomNettPrice?: number;
+    adminInternalNotes?: string;
+  }
+): Promise<void> => {
+  const docId = getSubmissionDocId(ticketId);
+  const path = `${SUBMISSIONS_COLLECTION}/${docId}`;
+  try {
+    const docRef = doc(db, SUBMISSIONS_COLLECTION, docId);
+    const updateData: Record<string, unknown> = {};
+    if (typeof notesPayload.adminRackLocation === 'string') {
+      updateData.adminRackLocation = notesPayload.adminRackLocation.trim().slice(0, 120);
+    }
+    if (typeof notesPayload.adminBottomNettPrice === 'number') {
+      updateData.adminBottomNettPrice = Math.max(0, Number(notesPayload.adminBottomNettPrice));
+    }
+    if (typeof notesPayload.adminInternalNotes === 'string') {
+      updateData.adminInternalNotes = notesPayload.adminInternalNotes.trim().slice(0, 2000);
+    }
+    await updateDoc(docRef, updateData);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+    throw error;
+  }
+};
+
+/**
  * Delete a submission from Firestore
  */
 export const deleteSubmissionFromFirebase = async (ticketId: string): Promise<void> => {
@@ -321,7 +403,7 @@ export const subscribeToSubmissions = (
 };
 
 /**
- * Subscribe to public live catalog items ('Sedang Dipajang (Live)') with privacy masking
+ * Subscribe to public live catalog items ('Sedang Dipajang (Live)', 'Diterima', 'Menunggu Kurasi') with privacy masking
  */
 export const subscribeToLiveCatalog = (
   onData: (items: ConsignmentItem[]) => void,
@@ -329,7 +411,12 @@ export const subscribeToLiveCatalog = (
 ): (() => void) => {
   const q = query(
     collection(db, SUBMISSIONS_COLLECTION),
-    where('status', '==', 'Sedang Dipajang (Live)'),
+    where('status', 'in', [
+      'Sedang Dipajang (Live)',
+      'Booked (Di-DP)',
+      'Diterima',
+      'Menunggu Kurasi',
+    ]),
     limit(60)
   );
 
@@ -342,11 +429,15 @@ export const subscribeToLiveCatalog = (
           return {
             ...data,
             id: data.id || `#${docSnap.id}`,
-            // Mask sensitive consignor fields for public catalog viewers
+            // Mask sensitive consignor & internal admin fields for public catalog viewers
             whatsappNumber: '',
             bankAccount: '',
+            adminRackLocation: undefined,
+            adminBottomNettPrice: undefined,
+            adminInternalNotes: undefined,
           };
         })
+        .filter((item) => item.postStatus !== 'Sold Out')
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       onData(items);
     },
@@ -394,14 +485,95 @@ export const subscribeToSoldCatalog = (
 };
 
 /**
+ * Wanted Requests (Papan Titip Cari Barang) Firestore Helpers
+ */
+export const saveWantedRequestToFirebase = async (req: WantedRequest): Promise<void> => {
+  const docId = getSubmissionDocId(req.id);
+  const path = `${WANTED_COLLECTION}/${docId}`;
+  try {
+    const rawWa = (req.whatsappNumber || '').trim();
+    const payload: Record<string, unknown> = {
+      id: (req.id || '#REQ-2026-0000').slice(0, 50),
+      createdAt: req.createdAt || new Date().toISOString(),
+      requesterName: (req.requesterName || 'Warga Majalengka').trim().slice(0, 150),
+      whatsappNumber: (rawWa.length >= 5 ? rawWa : '0800000000').slice(0, 35),
+      kecamatan: (req.kecamatan || 'Majalengka').trim().slice(0, 100),
+      category: req.category || 'Lainnya',
+      itemWanted: (req.itemWanted || 'Barang Bekas').trim().slice(0, 250),
+      maxBudget: Math.max(1000, Math.min(1000000000, Number(req.maxBudget) || 50000)),
+      notes: (req.notes || '-').trim().slice(0, 2000) || '-',
+      status: req.status || 'Masih Dicari',
+    };
+    await setDoc(doc(db, WANTED_COLLECTION, docId), payload, { merge: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+    throw error;
+  }
+};
+
+export const updateWantedRequestStatusInFirebase = async (
+  reqId: string,
+  newStatus: WantedRequestStatus
+): Promise<void> => {
+  const docId = getSubmissionDocId(reqId);
+  const path = `${WANTED_COLLECTION}/${docId}`;
+  try {
+    await updateDoc(doc(db, WANTED_COLLECTION, docId), { status: newStatus });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+    throw error;
+  }
+};
+
+export const deleteWantedRequestFromFirebase = async (reqId: string): Promise<void> => {
+  const docId = getSubmissionDocId(reqId);
+  const path = `${WANTED_COLLECTION}/${docId}`;
+  try {
+    await deleteDoc(doc(db, WANTED_COLLECTION, docId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+    throw error;
+  }
+};
+
+export const subscribeToWantedRequests = (
+  onData: (requests: WantedRequest[]) => void,
+  onError?: (errorInfo: FirestoreErrorInfo) => void
+): (() => void) => {
+  const q = query(
+    collection(db, WANTED_COLLECTION),
+    orderBy('createdAt', 'desc'),
+    limit(40)
+  );
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const list: WantedRequest[] = snapshot.docs.map((docSnap) => {
+        const data = docSnap.data() as WantedRequest;
+        return {
+          ...data,
+          id: data.id || `#${docSnap.id}`,
+        };
+      });
+      onData(list);
+    },
+    (error) => {
+      const errInfo = handleFirestoreError(error, OperationType.LIST, WANTED_COLLECTION);
+      if (onError) onError(errInfo);
+    }
+  );
+};
+
+/**
  * Validate connection to Firestore server on boot
  */
 export const testFirestoreConnection = async (): Promise<void> => {
   try {
-    await getDocFromServer(doc(db, '_connection_check', 'ping'));
+    await getDocFromServer(doc(db, 'test', 'connection'));
   } catch (error) {
     if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error('Please check your Firebase configuration. Client appears offline.');
+      console.warn('Firestore client is currently in offline fallback mode.');
     }
   }
 };

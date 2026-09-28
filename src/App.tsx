@@ -37,6 +37,7 @@ import {
   CONDITIONS,
   SubmissionStatus,
   AdminPostStatus,
+  WantedRequest,
   ADMIN_CONTACT
 } from './types/consignment';
 import { formatRupiah, parseRupiahInput, calculateListingEstimates, getTenorTimeline } from './utils/formatters';
@@ -46,6 +47,7 @@ import { SuccessModal } from './components/SuccessModal';
 import { FAQModal } from './components/FAQModal';
 import { CommissionSimulator } from './components/CommissionSimulator';
 import { LiveCatalogSection } from './components/LiveCatalogSection';
+import { WantedBoardSection } from './components/WantedBoardSection';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { initAuth } from './services/googleAuth';
@@ -59,11 +61,15 @@ import {
   updateSubmissionStatusInFirebase,
   updateSubmissionPostStatusInFirebase,
   updateSubmissionPriceInFirebase,
+  updateSubmissionAdminNotesInFirebase,
   deleteSubmissionFromFirebase,
+  saveWantedRequestToFirebase,
+  subscribeToWantedRequests,
   testFirestoreConnection,
 } from './services/firebaseService';
 
 const STORAGE_KEY = 'barkas_majalengka_submissions';
+const WANTED_STORAGE_KEY = 'barkas_majalengka_wanted_requests';
 const FORM_DRAFT_KEY = 'barkas_consignment_form_draft';
 const ADMIN_PHONE_KEY = 'barkas_admin_whatsapp';
 const DEFAULT_ADMIN_PHONE = ADMIN_CONTACT.whatsappInternational;
@@ -161,10 +167,11 @@ export default function App() {
   const [trackedTicket, setTrackedTicket] = useState<ConsignmentItem | null>(null);
   const [isSearchingTicket, setIsSearchingTicket] = useState(false);
   const [ticketSearchError, setTicketSearchError] = useState<string | null>(null);
-  const [publicActiveTab, setPublicActiveTab] = useState<'form' | 'catalog'>(() => {
+  const [publicActiveTab, setPublicActiveTab] = useState<'form' | 'catalog' | 'wanted'>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       if (params.get('item')) return 'catalog';
+      if (params.get('tab') === 'wanted') return 'wanted';
     }
     return 'form';
   });
@@ -177,6 +184,40 @@ export default function App() {
   });
   const [liveCatalogItems, setLiveCatalogItems] = useState<ConsignmentItem[]>([]);
   const [soldCatalogItems, setSoldCatalogItems] = useState<ConsignmentItem[]>([]);
+  const [wantedRequests, setWantedRequests] = useState<WantedRequest[]>(() => {
+    try {
+      const saved = localStorage.getItem(WANTED_STORAGE_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // ignore
+    }
+    return [
+      {
+        id: '#REQ-2026-8102',
+        createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+        requesterName: 'Kang Fajar',
+        whatsappNumber: '',
+        kecamatan: 'Jatiwangi',
+        category: 'Helm & Otomotif',
+        itemWanted: 'Helm Cargloss Retro / Bogo Original Size L',
+        maxBudget: 220000,
+        notes: 'Warna hitam doff atau cream, busa masih kencang, siap COD Jatiwangi / Majalengka Kota.',
+        status: 'Masih Dicari',
+      },
+      {
+        id: '#REQ-2026-8149',
+        createdAt: new Date(Date.now() - 86400000).toISOString(),
+        requesterName: 'Teh Nisa',
+        whatsappNumber: '',
+        kecamatan: 'Majalengka',
+        category: 'Sneakers / Sepatu',
+        itemWanted: 'New Balance 530 / Compass Velocity Size 39-40',
+        maxBudget: 450000,
+        notes: 'Original 100%, kondisi mulus layak pakai jalan, lengkap box lebih diutamakan.',
+        status: 'Masih Dicari',
+      },
+    ];
+  });
 
   // Google Workspace / Forms Auth State
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -190,22 +231,27 @@ export default function App() {
   };
 
   // Save submissions to localStorage & state with QuotaExceededError fallback
-  const saveSubmissions = (newItems: ConsignmentItem[]) => {
-    setSubmissions(newItems);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newItems));
-    } catch {
+  const saveSubmissions = (
+    updater: ConsignmentItem[] | ((prev: ConsignmentItem[]) => ConsignmentItem[])
+  ) => {
+    setSubmissions((prev) => {
+      const newItems = typeof updater === 'function' ? updater(prev) : updater;
       try {
-        // Fallback: keep only 1 thumbnail photo per item in localStorage if 5MB quota is exceeded
-        const lightweightItems = newItems.slice(0, 30).map((item) => ({
-          ...item,
-          photos: item.photos && item.photos.length > 0 ? [item.photos[0]] : [],
-        }));
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(lightweightItems));
-      } catch (innerErr) {
-        console.warn('LocalStorage quota full, relying on Firestore cloud storage:', innerErr);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(newItems));
+      } catch {
+        try {
+          // Fallback: keep only 1 thumbnail photo per item in localStorage if 5MB quota is exceeded
+          const lightweightItems = newItems.slice(0, 30).map((item) => ({
+            ...item,
+            photos: item.photos && item.photos.length > 0 ? [item.photos[0]] : [],
+          }));
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(lightweightItems));
+        } catch (innerErr) {
+          console.warn('LocalStorage quota full, relying on Firestore cloud storage:', innerErr);
+        }
       }
-    }
+      return newItems;
+    });
   };
 
   // Restore form draft from sessionStorage on initial mount
@@ -316,7 +362,27 @@ export default function App() {
       }
     );
 
-    // Subscribe to public Live Catalog ('Sedang Dipajang (Live)') with privacy masking
+    // Load local submissions on any route so Home Page Etalase also reflects local/offline items immediately
+    let initialLocalItems: ConsignmentItem[] = [];
+    try {
+      const savedSubmissions = localStorage.getItem(STORAGE_KEY);
+      if (savedSubmissions) {
+        initialLocalItems = JSON.parse(savedSubmissions);
+        if (Array.isArray(initialLocalItems) && initialLocalItems.length > 0) {
+          setSubmissions(initialLocalItems);
+          // Ensure any local items are also pushed to Firestore in the background
+          initialLocalItems.forEach((item) => {
+            saveSubmissionToFirebase(item).catch(() => {
+              // ignore background sync errors
+            });
+          });
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    // Subscribe to public Live Catalog ('Sedang Dipajang (Live)', 'Diterima', 'Menunggu Kurasi') with privacy masking
     const unsubscribeLiveCatalog = subscribeToLiveCatalog((liveItems) => {
       setLiveCatalogItems(liveItems);
     });
@@ -326,10 +392,24 @@ export default function App() {
       setSoldCatalogItems(soldItems);
     });
 
+    // Subscribe to public Wanted Board requests with privacy masking on phone number
+    const unsubscribeWanted = subscribeToWantedRequests((cloudRequests) => {
+      if (cloudRequests.length > 0) {
+        const masked = cloudRequests.map((r) => ({ ...r, whatsappNumber: '' }));
+        setWantedRequests(masked);
+        try {
+          localStorage.setItem(WANTED_STORAGE_KEY, JSON.stringify(masked));
+        } catch {
+          // ignore
+        }
+      }
+    });
+
     return () => {
       if (typeof unsubscribeAuth === 'function') unsubscribeAuth();
       if (typeof unsubscribeLiveCatalog === 'function') unsubscribeLiveCatalog();
       if (typeof unsubscribeSoldCatalog === 'function') unsubscribeSoldCatalog();
+      if (typeof unsubscribeWanted === 'function') unsubscribeWanted();
     };
   }, []);
 
@@ -516,8 +596,7 @@ export default function App() {
       };
 
       // Update localStorage immediately for instant responsiveness & offline fallback
-      const updatedList = [newItem, ...submissions.filter((s) => s.id !== newItem.id)];
-      saveSubmissions(updatedList);
+      saveSubmissions((prev) => [newItem, ...prev.filter((s) => s.id !== newItem.id)]);
 
       // Save to Firebase Firestore so all devices receive real-time update
       try {
@@ -573,6 +652,62 @@ export default function App() {
     }
   };
 
+  // Merge Firestore live catalog with local active submissions (privacy-masked) so items never show (0) if saved locally
+  const effectiveLiveCatalogItems = React.useMemo(() => {
+    const activeStatuses: SubmissionStatus[] = [
+      'Sedang Dipajang (Live)',
+      'Booked (Di-DP)',
+      'Diterima',
+      'Menunggu Kurasi',
+    ];
+    const map = new Map<string, ConsignmentItem>();
+
+    // First add local active items (masked for public view)
+    submissions.forEach((item) => {
+      if (activeStatuses.includes(item.status) && item.postStatus !== 'Sold Out') {
+        map.set(item.id, {
+          ...item,
+          whatsappNumber: '',
+          bankAccount: '',
+        });
+      }
+    });
+
+    // Cloud items override local items (since cloud items have full photos not truncated by localStorage)
+    liveCatalogItems.forEach((item) => {
+      if (activeStatuses.includes(item.status) && item.postStatus !== 'Sold Out') {
+        map.set(item.id, item);
+      }
+    });
+
+    return Array.from(map.values()).sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }, [liveCatalogItems, submissions]);
+
+  const effectiveSoldCatalogItems = React.useMemo(() => {
+    const soldStatuses: SubmissionStatus[] = ['Terjual', 'Selesai & Dicairkan'];
+    const map = new Map<string, ConsignmentItem>();
+
+    submissions.forEach((item) => {
+      if (soldStatuses.includes(item.status) || item.postStatus === 'Sold Out') {
+        map.set(item.id, {
+          ...item,
+          whatsappNumber: '',
+          bankAccount: '',
+        });
+      }
+    });
+
+    soldCatalogItems.forEach((item) => {
+      map.set(item.id, item);
+    });
+
+    return Array.from(map.values()).sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }, [soldCatalogItems, submissions]);
+
   // ROUTE: IF /admin -> RENDER PROTECTED ADMIN DASHBOARD
   if (currentPath === '/admin') {
     return (
@@ -580,42 +715,77 @@ export default function App() {
         submissions={submissions}
         isFirebaseConnected={isFirebaseConnected}
         onUpdateStatus={(id: string, newStatus: SubmissionStatus) => {
-          const updated = submissions.map((s) => (s.id === id ? { ...s, status: newStatus } : s));
-          saveSubmissions(updated);
-          updateSubmissionStatusInFirebase(id, newStatus).catch((err) =>
-            console.warn('Failed to update status in Firestore:', err)
-          );
+          saveSubmissions((prev) => {
+            const updated = prev.map((s) => (s.id === id ? { ...s, status: newStatus } : s));
+            const target = updated.find((s) => s.id === id);
+            updateSubmissionStatusInFirebase(id, newStatus).catch(() => {
+              if (target) {
+                saveSubmissionToFirebase(target).catch((err) =>
+                  console.warn('Failed to sync status to Firestore:', err)
+                );
+              }
+            });
+            return updated;
+          });
         }}
         onUpdatePostStatus={(id: string, newPostStatus: AdminPostStatus) => {
-          const updated = submissions.map((s) => (s.id === id ? { ...s, postStatus: newPostStatus } : s));
-          saveSubmissions(updated);
-          updateSubmissionPostStatusInFirebase(id, newPostStatus).catch((err) =>
-            console.warn('Failed to update postStatus in Firestore:', err)
-          );
+          saveSubmissions((prev) => {
+            const updated = prev.map((s) => (s.id === id ? { ...s, postStatus: newPostStatus } : s));
+            const target = updated.find((s) => s.id === id);
+            updateSubmissionPostStatusInFirebase(id, newPostStatus).catch(() => {
+              if (target) {
+                saveSubmissionToFirebase(target).catch((err) =>
+                  console.warn('Failed to sync postStatus to Firestore:', err)
+                );
+              }
+            });
+            return updated;
+          });
         }}
         onUpdatePrice={async (id: string, newNettPrice: number, previousNettPrice?: number) => {
-          const updated = submissions.map((s) =>
-            s.id === id
-              ? {
-                  ...s,
-                  nettPrice: newNettPrice,
-                  previousNettPrice: previousNettPrice && previousNettPrice > 0 ? previousNettPrice : undefined,
-                }
-              : s
+          saveSubmissions((prev) =>
+            prev.map((s) =>
+              s.id === id
+                ? {
+                    ...s,
+                    nettPrice: newNettPrice,
+                    previousNettPrice: previousNettPrice && previousNettPrice > 0 ? previousNettPrice : undefined,
+                  }
+                : s
+            )
           );
-          saveSubmissions(updated);
           await updateSubmissionPriceInFirebase(id, newNettPrice, previousNettPrice);
         }}
+        onUpdateAdminNotes={async (
+          id: string,
+          notes: {
+            adminRackLocation?: string;
+            adminBottomNettPrice?: number;
+            adminInternalNotes?: string;
+          }
+        ) => {
+          saveSubmissions((prev) =>
+            prev.map((s) =>
+              s.id === id
+                ? {
+                    ...s,
+                    adminRackLocation: notes.adminRackLocation,
+                    adminBottomNettPrice: notes.adminBottomNettPrice,
+                    adminInternalNotes: notes.adminInternalNotes,
+                  }
+                : s
+            )
+          );
+          await updateSubmissionAdminNotesInFirebase(id, notes);
+        }}
         onDeleteSubmission={(id: string) => {
-          const updated = submissions.filter((s) => s.id !== id);
-          saveSubmissions(updated);
+          saveSubmissions((prev) => prev.filter((s) => s.id !== id));
           deleteSubmissionFromFirebase(id).catch((err) =>
             console.warn('Failed to delete submission from Firestore:', err)
           );
         }}
         onAddSampleItem={(sampleItem: ConsignmentItem) => {
-          const updated = [sampleItem, ...submissions.filter((s) => s.id !== sampleItem.id)];
-          saveSubmissions(updated);
+          saveSubmissions((prev) => [sampleItem, ...prev.filter((s) => s.id !== sampleItem.id)]);
           saveSubmissionToFirebase(sampleItem).catch((err) =>
             console.warn('Failed to save sample item to Firestore:', err)
           );
@@ -650,32 +820,45 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-6 sm:py-8">
-        {/* Top Mode Switcher: Formulir Titip Jual vs Etalase Barang Live */}
-        <div className="mb-5 p-1.5 rounded-2xl bg-slate-200/80 border border-slate-300/80 grid grid-cols-2 gap-1.5">
+        {/* Top Mode Switcher: Formulir Titip Jual vs Etalase Barang Live vs Titip Cari Barang */}
+        <div className="mb-5 p-1.5 rounded-2xl bg-slate-200/80 border border-slate-300/80 grid grid-cols-3 gap-1.5">
           <button
             type="button"
             onClick={() => setPublicActiveTab('form')}
-            className={`py-2.5 px-4 rounded-xl text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               publicActiveTab === 'form'
                 ? 'bg-[#1B365D] text-white shadow-xs'
                 : 'text-slate-700 hover:text-[#1B365D]'
             }`}
           >
-            <Tag className="w-4 h-4 text-amber-400" />
-            <span>Formulir Titip Jual</span>
+            <Tag className="w-4 h-4 text-amber-400 shrink-0" />
+            <span className="truncate">Formulir Titip Jual</span>
           </button>
 
           <button
             type="button"
             onClick={() => setPublicActiveTab('catalog')}
-            className={`py-2.5 px-4 rounded-xl text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               publicActiveTab === 'catalog'
                 ? 'bg-[#1B365D] text-white shadow-xs'
                 : 'text-slate-700 hover:text-[#1B365D]'
             }`}
           >
-            <ShoppingBag className="w-4 h-4 text-amber-400" />
-            <span>Etalase Barang Live ({liveCatalogItems.length})</span>
+            <ShoppingBag className="w-4 h-4 text-amber-400 shrink-0" />
+            <span className="truncate">Etalase Live ({effectiveLiveCatalogItems.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setPublicActiveTab('wanted')}
+            className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              publicActiveTab === 'wanted'
+                ? 'bg-[#1B365D] text-white shadow-xs'
+                : 'text-slate-700 hover:text-[#1B365D]'
+            }`}
+          >
+            <Search className="w-4 h-4 text-amber-400 shrink-0" />
+            <span className="truncate">Titip Cari ({wantedRequests.length})</span>
           </button>
         </div>
 
@@ -847,14 +1030,47 @@ export default function App() {
           })()}
         </div>
 
-        {/* If user selected Etalase Barang Live tab, render LiveCatalogSection */}
+        {/* If user selected Etalase Barang Live or Titip Cari Barang tab */}
         {publicActiveTab === 'catalog' ? (
           <LiveCatalogSection
-            items={liveCatalogItems}
-            soldItems={soldCatalogItems}
+            items={effectiveLiveCatalogItems}
+            soldItems={effectiveSoldCatalogItems}
             adminWhatsAppNumber={adminPhone}
             initialSelectedTicketId={initialCatalogTicketId}
             onSwitchToForm={() => setPublicActiveTab('form')}
+          />
+        ) : publicActiveTab === 'wanted' ? (
+          <WantedBoardSection
+            requests={wantedRequests}
+            adminWhatsAppNumber={adminPhone}
+            onAddRequest={async (newReq) => {
+              const maskedNewReq = { ...newReq, whatsappNumber: '' };
+              setWantedRequests((prev) => {
+                const updated = [maskedNewReq, ...prev];
+                try {
+                  localStorage.setItem(WANTED_STORAGE_KEY, JSON.stringify(updated));
+                } catch {
+                  // ignore
+                }
+                return updated;
+              });
+              try {
+                await saveWantedRequestToFirebase(newReq);
+              } catch {
+                // ignore offline error, saved locally
+              }
+              showAppToast('✅ Permintaan cari barang Anda berhasil ditayangkan di Papan Wanted!');
+            }}
+            onFulfillViaForm={(prefill) => {
+              setCategory(prefill.category);
+              setItemNameAndBrand(prefill.itemNameAndBrand);
+              setNettPriceRaw(String(prefill.suggestedNettPrice));
+              setPublicActiveTab('form');
+              showAppToast(
+                `✅ Formulir telah diisi otomatis untuk "${prefill.itemNameAndBrand}". Silakan lengkapi foto & data diri Anda!`
+              );
+              window.scrollTo({ top: 320, behavior: 'smooth' });
+            }}
           />
         ) : (
           <>

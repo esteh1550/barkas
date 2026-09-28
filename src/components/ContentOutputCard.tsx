@@ -31,6 +31,14 @@ interface ContentOutputCardProps {
   item: ConsignmentItem;
   onUpdatePostStatus: (id: string, newPostStatus: AdminPostStatus) => void;
   onUpdateGeneralStatus: (id: string, newStatus: SubmissionStatus) => void;
+  onUpdateAdminNotes?: (
+    id: string,
+    notes: {
+      adminRackLocation?: string;
+      adminBottomNettPrice?: number;
+      adminInternalNotes?: string;
+    }
+  ) => Promise<void>;
   onDelete: (id: string) => void;
   onOpenQR: (item: ConsignmentItem) => void;
   onDownloadPDF: (item: ConsignmentItem) => void;
@@ -43,6 +51,7 @@ const POST_STATUSES: { value: AdminPostStatus; label: string; badge: string; bor
   { value: 'Draft', label: 'Draft', badge: 'bg-slate-100 text-slate-700', border: 'border-slate-300' },
   { value: 'Ready to Post', label: 'Ready to Post', badge: 'bg-amber-100 text-amber-900', border: 'border-amber-400' },
   { value: 'Posted', label: 'Posted (Live)', badge: 'bg-blue-100 text-blue-900', border: 'border-blue-400' },
+  { value: 'Booked', label: 'Booked (Di-DP)', badge: 'bg-orange-100 text-orange-900', border: 'border-orange-400' },
   { value: 'Sold Out', label: 'Sold Out', badge: 'bg-emerald-100 text-emerald-900', border: 'border-emerald-400' },
 ];
 
@@ -50,6 +59,7 @@ export const ContentOutputCard: React.FC<ContentOutputCardProps> = ({
   item,
   onUpdatePostStatus,
   onUpdateGeneralStatus,
+  onUpdateAdminNotes,
   onDelete,
   onOpenQR,
   onDownloadPDF,
@@ -61,6 +71,16 @@ export const ContentOutputCard: React.FC<ContentOutputCardProps> = ({
   const [isCopied, setIsCopied] = useState(false);
   const [isCopiedLink, setIsCopiedLink] = useState(false);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const [isNotesOpen, setIsNotesOpen] = useState(
+    Boolean(item.adminRackLocation || item.adminBottomNettPrice || item.adminInternalNotes)
+  );
+  const [rackLocationInput, setRackLocationInput] = useState(item.adminRackLocation || '');
+  const [bottomNettInput, setBottomNettInput] = useState(
+    item.adminBottomNettPrice ? item.adminBottomNettPrice.toLocaleString('id-ID') : ''
+  );
+  const [internalNotesInput, setInternalNotesInput] = useState(item.adminInternalNotes || '');
+  const [isSavingNotes, setIsSavingNotes] = useState(false);
+  const [notesSavedToast, setNotesSavedToast] = useState(false);
 
   const estimates = calculateListingEstimates(item.nettPrice);
   const hasPriceDrop =
@@ -80,12 +100,31 @@ export const ContentOutputCard: React.FC<ContentOutputCardProps> = ({
   const currentPostStatus = item.postStatus || (
     item.status === 'Terjual' || item.status === 'Selesai & Dicairkan'
       ? 'Sold Out'
+      : item.status === 'Booked (Di-DP)'
+      ? 'Booked'
       : item.status === 'Sedang Dipajang (Live)'
       ? 'Posted'
       : item.status === 'Diterima'
       ? 'Ready to Post'
       : 'Draft'
   );
+
+  const handleSaveInternalNotes = async () => {
+    if (!onUpdateAdminNotes) return;
+    setIsSavingNotes(true);
+    try {
+      const numericBottom = Number(bottomNettInput.replace(/[^0-9]/g, '')) || 0;
+      await onUpdateAdminNotes(item.id, {
+        adminRackLocation: rackLocationInput.trim(),
+        adminBottomNettPrice: numericBottom > 0 ? numericBottom : undefined,
+        adminInternalNotes: internalNotesInput.trim(),
+      });
+      setNotesSavedToast(true);
+      setTimeout(() => setNotesSavedToast(false), 2500);
+    } finally {
+      setIsSavingNotes(false);
+    }
+  };
 
   const handleCopyCaption = () => {
     navigator.clipboard.writeText(activeCaption);
@@ -145,6 +184,7 @@ export const ContentOutputCard: React.FC<ContentOutputCardProps> = ({
                   onClick={() => {
                     onUpdatePostStatus(item.id, statusObj.value);
                     if (statusObj.value === 'Posted') onUpdateGeneralStatus(item.id, 'Sedang Dipajang (Live)');
+                    if (statusObj.value === 'Booked') onUpdateGeneralStatus(item.id, 'Booked (Di-DP)');
                     if (statusObj.value === 'Sold Out') onUpdateGeneralStatus(item.id, 'Terjual');
                     if (statusObj.value === 'Ready to Post') onUpdateGeneralStatus(item.id, 'Diterima');
                   }}
@@ -275,6 +315,91 @@ export const ContentOutputCard: React.FC<ContentOutputCardProps> = ({
                 </span>
               </div>
             </div>
+          </div>
+
+          {/* Private Admin Notes, Rack Location & Bottom Nett Price */}
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/70 overflow-hidden text-xs">
+            <button
+              type="button"
+              onClick={() => setIsNotesOpen((prev) => !prev)}
+              className="w-full px-3.5 py-2.5 flex items-center justify-between text-left font-bold text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              <span className="flex items-center gap-1.5">
+                <span>🔒 Catatan Internal Gudang & Rak</span>
+                {item.adminRackLocation && (
+                  <span className="px-2 py-0.5 rounded-md bg-[#1B365D] text-amber-300 font-mono text-[10px]">
+                    {item.adminRackLocation}
+                  </span>
+                )}
+              </span>
+              <span className="text-[10px] text-[#1B365D] font-semibold">
+                {isNotesOpen ? 'Tutup ▲' : 'Edit ▼'}
+              </span>
+            </button>
+
+            {isNotesOpen && (
+              <div className="p-3.5 border-t border-slate-200 bg-white space-y-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                      Kode Rak / Lokasi Simpan
+                    </label>
+                    <input
+                      type="text"
+                      value={rackLocationInput}
+                      onChange={(e) => setRackLocationInput(e.target.value)}
+                      placeholder="Contoh: Rak A-02 / Box 4"
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-slate-50 focus:bg-white focus:border-[#1B365D] focus:outline-hidden"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                      Batas Nego Mentok Penitip (Rp)
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={bottomNettInput}
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/[^0-9]/g, '');
+                        setBottomNettInput(raw ? Number(raw).toLocaleString('id-ID') : '');
+                      }}
+                      placeholder="Contoh: 300.000"
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-mono bg-slate-50 focus:bg-white focus:border-[#1B365D] focus:outline-hidden"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                    Catatan Rahasia Admin (DP / Janji COD / Kelengkapan)
+                  </label>
+                  <input
+                    type="text"
+                    value={internalNotesInput}
+                    onChange={(e) => setInternalNotesInput(e.target.value)}
+                    placeholder="Contoh: Sudah di-DP 50rb oleh Kang Dani, pelunasan Sabtu sore"
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-slate-50 focus:bg-white focus:border-[#1B365D] focus:outline-hidden"
+                  />
+                </div>
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-[10px] text-slate-400">
+                    Hanya terlihat di /admin (disembunyikan dari publik)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleSaveInternalNotes}
+                    disabled={isSavingNotes}
+                    className="px-3 py-1.5 rounded-lg bg-[#1B365D] hover:bg-[#24477A] text-white font-bold text-[11px] cursor-pointer disabled:opacity-60"
+                  >
+                    {notesSavedToast
+                      ? '✓ Tersimpan'
+                      : isSavingNotes
+                      ? 'Menyimpan...'
+                      : 'Simpan Catatan'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

@@ -89,6 +89,7 @@
             "Diterima",
             "Ditolak",
             "Sedang Dipajang (Live)",
+            "Booked (Di-DP)",
             "Terjual",
             "Selesai & Dicairkan"
           ],
@@ -100,6 +101,7 @@
             "Draft",
             "Ready to Post",
             "Posted",
+            "Booked",
             "Sold Out"
           ],
           "description": "Status progres pembuatan konten postingan admin"
@@ -111,6 +113,18 @@
         "googleFormId": {
           "type": "string",
           "description": "ID Google Form terkait"
+        },
+        "adminRackLocation": {
+          "type": "string",
+          "description": "Kode lokasi rak penyimpanan gudang internal admin"
+        },
+        "adminBottomNettPrice": {
+          "type": "number",
+          "description": "Batas harga nett paling bawah hasil kesepakatan dengan penitip"
+        },
+        "adminInternalNotes": {
+          "type": "string",
+          "description": "Catatan internal admin untuk riwayat nego dan jadwal COD"
         }
       },
       "required": [
@@ -130,6 +144,77 @@
         "agreementAccepted",
         "status"
       ]
+    },
+    "WantedRequest": {
+      "title": "WantedRequest",
+      "description": "Permintaan titip cari barang oleh calon pembeli di Kabupaten Majalengka",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Kode unik permintaan cari barang (contoh: #REQ-2026-1234)"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu permintaan dibuat dalam format ISO string"
+        },
+        "requesterName": {
+          "type": "string",
+          "description": "Nama pencari barang"
+        },
+        "whatsappNumber": {
+          "type": "string",
+          "description": "Nomor WhatsApp pencari barang"
+        },
+        "kecamatan": {
+          "type": "string",
+          "description": "Kecamatan domisili pencari barang di Majalengka"
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "Fashion",
+            "Sneakers / Sepatu",
+            "Helm & Otomotif",
+            "Gadget & Elektronik",
+            "Lainnya"
+          ],
+          "description": "Kategori barang yang dicari"
+        },
+        "itemWanted": {
+          "type": "string",
+          "description": "Nama, merk, dan ukuran barang yang dicari"
+        },
+        "maxBudget": {
+          "type": "number",
+          "description": "Estimasi budget maksimal dalam Rupiah"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Detail spesifikasi atau kondisi yang diharapkan"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "Masih Dicari",
+            "Sudah Dapat"
+          ],
+          "description": "Status pencarian barang"
+        }
+      },
+      "required": [
+        "id",
+        "createdAt",
+        "requesterName",
+        "whatsappNumber",
+        "kecamatan",
+        "category",
+        "itemWanted",
+        "maxBudget",
+        "notes",
+        "status"
+      ]
     }
   },
   "firestore": {
@@ -138,6 +223,12 @@
         "$ref": "#/entities/ConsignmentItem"
       },
       "description": "Koleksi data pengajuan titip jual barang secara real-time lintas perangkat"
+    },
+    "/wanted_requests/{requestId}": {
+      "schema": {
+        "$ref": "#/entities/WantedRequest"
+      },
+      "description": "Koleksi papan permintaan titip cari barang warga Majalengka"
     }
   }
 }

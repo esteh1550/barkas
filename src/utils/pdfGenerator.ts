@@ -669,3 +669,150 @@ export const generateBuyerInvoicePDF = async (
   doc.save(safeFilename);
 };
 
+/**
+ * Generate Batch Hangtag QR Sheet (A4 Grid: 3x3 = 9 Hangtags per page) for physical warehouse labeling
+ */
+export const generateBatchHangtagPDF = async (items: ConsignmentItem[]): Promise<void> => {
+  if (!items || items.length === 0) return;
+
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4',
+  });
+
+  const cols = 3;
+  const rows = 3;
+  const perPage = cols * rows;
+  const marginX = 12;
+  const marginY = 14;
+  const gapX = 5;
+  const gapY = 6;
+  const cardW = (210 - marginX * 2 - gapX * (cols - 1)) / cols; // ~58.6mm
+  const cardH = (297 - marginY * 2 - gapY * (rows - 1)) / rows; // ~85.6mm
+
+  for (let i = 0; i < items.length; i++) {
+    const pageIndex = Math.floor(i / perPage);
+    const indexOnPage = i % perPage;
+
+    if (i > 0 && indexOnPage === 0) {
+      doc.addPage();
+    }
+
+    if (indexOnPage === 0) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(27, 54, 93);
+      doc.text(
+        `LEMBAR CETAK LABEL HANGTAG QR GUDANG — info.barkasmajalengka (Halaman ${pageIndex + 1})`,
+        marginX,
+        9
+      );
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(100, 116, 139);
+      doc.text('Gunting mengikuti garis tepi kartu • Scan QR dengan kamera HP untuk verifikasi detail barang', 210 - marginX, 9, {
+        align: 'right',
+      });
+    }
+
+    const item = items[i];
+    const col = indexOnPage % cols;
+    const row = Math.floor(indexOnPage / cols);
+    const x = marginX + col * (cardW + gapX);
+    const y = marginY + row * (cardH + gapY);
+
+    const estimates = calculateListingEstimates(item.nettPrice);
+    const qrDataUrl = await generateTicketQRCode(item);
+
+    // Card outer border
+    doc.setDrawColor(148, 163, 184);
+    doc.setLineWidth(0.35);
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(x, y, cardW, cardH, 2.5, 2.5, 'FD');
+
+    // Header band
+    doc.setFillColor(27, 54, 93);
+    doc.roundedRect(x, y, cardW, 13, 2.5, 2.5, 'F');
+    doc.rect(x, y + 10, cardW, 3, 'F');
+
+    // Punch hole circle at top center
+    doc.setFillColor(255, 255, 255);
+    doc.circle(x + cardW / 2, y + 3.2, 1.4, 'F');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(253, 230, 138);
+    doc.text('info.barkasmajalengka', x + cardW / 2, y + 8.5, { align: 'center' });
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(5.5);
+    doc.setTextColor(226, 232, 240);
+    doc.text('OFFICIAL CURATED CONSIGNMENT TAG', x + cardW / 2, y + 11.7, { align: 'center' });
+
+    // Ticket ID & Rack Badge
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.setTextColor(27, 54, 93);
+    const rackSuffix = item.adminRackLocation ? ` [${item.adminRackLocation}]` : '';
+    doc.text(`${item.id}${rackSuffix}`, x + cardW / 2, y + 18.5, { align: 'center' });
+
+    // Item Name (max 2 lines)
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(15, 23, 42);
+    const nameLines = doc.splitTextToSize(item.itemNameAndBrand, cardW - 6).slice(0, 2);
+    doc.text(nameLines, x + cardW / 2, y + 23.5, { align: 'center' });
+
+    // Spec line
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text(
+      `${item.category} • Size ${item.size || 'All'}`,
+      x + cardW / 2,
+      y + 31,
+      { align: 'center' }
+    );
+    doc.text(
+      `${item.condition} • Kec. ${item.kecamatan}`,
+      x + cardW / 2,
+      y + 34.5,
+      { align: 'center' }
+    );
+
+    // QR Code centered
+    const qrSize = 29;
+    if (qrDataUrl) {
+      doc.addImage(qrDataUrl, 'PNG', x + (cardW - qrSize) / 2, y + 36.5, qrSize, qrSize);
+    }
+
+    // Price box at bottom
+    doc.setFillColor(254, 243, 199);
+    doc.setDrawColor(245, 158, 11);
+    doc.roundedRect(x + 3, y + cardH - 17.5, cardW - 6, 14.5, 1.5, 1.5, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6);
+    doc.setTextColor(146, 64, 14);
+    doc.text('HARGA ETALASE RESMI:', x + cardW / 2, y + cardH - 13, { align: 'center' });
+
+    doc.setFontSize(10.5);
+    doc.setTextColor(27, 54, 93);
+    doc.text(formatRupiah(estimates.suggestedListingPrice), x + cardW / 2, y + cardH - 7.5, {
+      align: 'center',
+    });
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(5.2);
+    doc.setTextColor(100, 116, 139);
+    doc.text(`WA Admin: ${ADMIN_CONTACT.whatsappFormatted}`, x + cardW / 2, y + cardH - 4.2, {
+      align: 'center',
+    });
+  }
+
+  const safeFilename = `Batch-Hangtag-QR-BarkasMajalengka-${new Date().toISOString().slice(0, 10)}.pdf`;
+  doc.save(safeFilename);
+};
+
+

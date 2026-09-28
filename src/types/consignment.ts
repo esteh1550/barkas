@@ -16,6 +16,7 @@ export type SubmissionStatus =
   | 'Diterima' 
   | 'Ditolak'
   | 'Sedang Dipajang (Live)' 
+  | 'Booked (Di-DP)'
   | 'Terjual' 
   | 'Selesai & Dicairkan';
 
@@ -23,6 +24,7 @@ export type AdminPostStatus =
   | 'Draft' 
   | 'Ready to Post' 
   | 'Posted' 
+  | 'Booked'
   | 'Sold Out';
 
 export interface ConsignmentItem {
@@ -52,6 +54,26 @@ export interface ConsignmentItem {
   postStatus?: AdminPostStatus;
   syncedToGoogleForms?: boolean;
   googleFormId?: string;
+
+  // 4. Catatan Internal Admin (Private - Disembunyikan dari Publik)
+  adminRackLocation?: string;
+  adminBottomNettPrice?: number;
+  adminInternalNotes?: string;
+}
+
+export type WantedRequestStatus = 'Masih Dicari' | 'Sudah Dapat';
+
+export interface WantedRequest {
+  id: string; // e.g. #REQ-2026-1234
+  createdAt: string;
+  requesterName: string;
+  whatsappNumber: string;
+  kecamatan: string;
+  category: ItemCategory;
+  itemWanted: string;
+  maxBudget: number;
+  notes: string;
+  status: WantedRequestStatus;
 }
 
 export const ADMIN_CONTACT = {

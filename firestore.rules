@@ -66,10 +66,38 @@ service cloud.firestore {
         && (!('previousNettPrice' in data) || (data.previousNettPrice is number && data.previousNettPrice >= 0 && data.previousNettPrice <= 1000000000))
         && data.photos is list && data.photos.size() >= 1 && data.photos.size() <= 8
         && data.agreementAccepted is bool
-        && data.status in ['Menunggu Kurasi', 'Diterima', 'Ditolak', 'Sedang Dipajang (Live)', 'Terjual', 'Selesai & Dicairkan']
-        && (!('postStatus' in data) || data.postStatus in ['Draft', 'Ready to Post', 'Posted', 'Sold Out'])
+        && data.status in ['Menunggu Kurasi', 'Diterima', 'Ditolak', 'Sedang Dipajang (Live)', 'Booked (Di-DP)', 'Terjual', 'Selesai & Dicairkan']
+        && (!('postStatus' in data) || data.postStatus in ['Draft', 'Ready to Post', 'Posted', 'Booked', 'Sold Out'])
         && (!('syncedToGoogleForms' in data) || data.syncedToGoogleForms is bool)
-        && (!('googleFormId' in data) || (data.googleFormId is string && data.googleFormId.size() <= 200));
+        && (!('googleFormId' in data) || (data.googleFormId is string && data.googleFormId.size() <= 200))
+        && (!('adminRackLocation' in data) || (data.adminRackLocation is string && data.adminRackLocation.size() <= 120))
+        && (!('adminBottomNettPrice' in data) || (data.adminBottomNettPrice is number && data.adminBottomNettPrice >= 0 && data.adminBottomNettPrice <= 1000000000))
+        && (!('adminInternalNotes' in data) || (data.adminInternalNotes is string && data.adminInternalNotes.size() <= 2000));
+    }
+
+    function isValidWantedRequest(data) {
+      return data.keys().hasAll([
+        'id',
+        'createdAt',
+        'requesterName',
+        'whatsappNumber',
+        'kecamatan',
+        'category',
+        'itemWanted',
+        'maxBudget',
+        'notes',
+        'status'
+      ])
+      && data.id is string && data.id.size() >= 3 && data.id.size() <= 50
+      && data.createdAt is string && data.createdAt.size() >= 10 && data.createdAt.size() <= 60
+      && data.requesterName is string && data.requesterName.size() >= 1 && data.requesterName.size() <= 150
+      && data.whatsappNumber is string && data.whatsappNumber.size() >= 5 && data.whatsappNumber.size() <= 35
+      && data.kecamatan is string && data.kecamatan.size() >= 1 && data.kecamatan.size() <= 100
+      && data.category in ['Fashion', 'Sneakers / Sepatu', 'Helm & Otomotif', 'Gadget & Elektronik', 'Lainnya']
+      && data.itemWanted is string && data.itemWanted.size() >= 2 && data.itemWanted.size() <= 250
+      && data.maxBudget is number && data.maxBudget > 0 && data.maxBudget <= 1000000000
+      && data.notes is string && data.notes.size() >= 1 && data.notes.size() <= 2000
+      && data.status in ['Masih Dicari', 'Sudah Dapat'];
     }
 
     match /submissions/{submissionId} {
@@ -77,6 +105,21 @@ service cloud.firestore {
       allow create: if isValidConsignmentSubmission(request.resource.data);
       allow update: if isValidConsignmentSubmission(request.resource.data);
       allow delete: if true;
+    }
+
+    match /wanted_requests/{requestId} {
+      allow read: if true;
+      allow create: if isValidWantedRequest(request.resource.data);
+      allow update: if isValidWantedRequest(request.resource.data);
+      allow delete: if true;
+    }
+
+    match /_connection_check/{docId} {
+      allow read: if true;
+    }
+
+    match /test/{docId} {
+      allow read: if true;
     }
   }
 }

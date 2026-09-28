@@ -205,6 +205,21 @@ export const generateBuyerInquiryWhatsAppUrl = (
     ? `\n📍 *Preferensi Titik COD / Pengiriman:* *${options.codPoint}*`
     : '';
 
+  const isBooked = item.status === 'Booked (Di-DP)' || item.postStatus === 'Booked';
+
+  if (isBooked) {
+    const waitlistMsg = `Halo Admin Esteh (*info.barkasmajalengka*), saya melihat barang berikut sedang *BOOKED / DI-DP* di Etalase Live:
+
+🏷️ *Nama Barang:* ${item.itemNameAndBrand}
+🎫 *Kode Tiket:* ${item.id}
+💰 *Harga Etalase:* ${formatRupiah(estimates.suggestedListingPrice)}
+🏠 *Domisili Barang:* Kec. ${item.kecamatan}, Majalengka${codBlock}
+
+Saya ingin *DAFTAR ANTREAN (Waiting List)* apabila transaksi pembeli sebelumnya batal COD/tidak jadi pelunasan. Mohon kabari saya ya Admin, terima kasih! 🙏`;
+
+    return `https://wa.me/${cleanAdmin}?text=${encodeURIComponent(waitlistMsg)}`;
+  }
+
   const message = `Halo Admin Esteh (*info.barkasmajalengka*), saya tertarik dengan barang di Etalase Live berikut:
 
 🏷️ *Nama Barang:* ${item.itemNameAndBrand}

@@ -64,6 +64,14 @@ interface AdminDashboardProps {
   onUpdateStatus: (id: string, newStatus: SubmissionStatus) => void;
   onUpdatePostStatus?: (id: string, newPostStatus: AdminPostStatus) => void;
   onUpdatePrice?: (id: string, newNettPrice: number, previousNettPrice?: number) => Promise<void>;
+  onUpdateAdminNotes?: (
+    id: string,
+    notes: {
+      adminRackLocation?: string;
+      adminBottomNettPrice?: number;
+      adminInternalNotes?: string;
+    }
+  ) => Promise<void>;
   onDeleteSubmission: (id: string) => void;
   onAddSampleItem?: (sampleItem: ConsignmentItem) => void;
   adminWhatsAppNumber: string;
@@ -85,6 +93,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onUpdateStatus,
   onUpdatePostStatus,
   onUpdatePrice,
+  onUpdateAdminNotes,
   onDeleteSubmission,
   onAddSampleItem,
   adminWhatsAppNumber,
@@ -225,8 +234,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       nettPrice: 450000,
       photos: demoPhotos,
       agreementAccepted: true,
-      status: 'Menunggu Kurasi',
-      postStatus: 'Draft'
+      status: 'Sedang Dipajang (Live)',
+      postStatus: 'Posted'
     };
 
     onAddSampleItem(demoItem);
@@ -315,6 +324,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const countAccepted = submissions.filter((s) => s.status === 'Diterima').length;
   const countRejected = submissions.filter((s) => s.status === 'Ditolak').length;
   const countLive = submissions.filter((s) => s.status === 'Sedang Dipajang (Live)').length;
+  const countBooked = submissions.filter((s) => s.status === 'Booked (Di-DP)').length;
   const countSold = submissions.filter((s) => s.status === 'Terjual').length;
 
   // Total nett value calculation
@@ -849,6 +859,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </button>
 
             <button
+              onClick={() => setSelectedStatusTab('Booked (Di-DP)')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1.5 ${
+                selectedStatusTab === 'Booked (Di-DP)'
+                  ? 'bg-orange-600 text-white shadow-xs'
+                  : 'bg-white text-orange-800 hover:bg-orange-50 border border-orange-200'
+              }`}
+            >
+              <span>Booked (Di-DP)</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${selectedStatusTab === 'Booked (Di-DP)' ? 'bg-black/20' : 'bg-orange-100 text-orange-800'}`}>
+                {countBooked}
+              </span>
+            </button>
+
+            <button
               onClick={() => setSelectedStatusTab('Terjual')}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1.5 ${
                 selectedStatusTab === 'Terjual'
@@ -1003,6 +1027,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       }
                     }}
                     onUpdateGeneralStatus={onUpdateStatus}
+                    onUpdateAdminNotes={onUpdateAdminNotes}
                     onDelete={(id) => {
                       const itm = submissions.find((s) => s.id === id);
                       onDeleteSubmission(id);
@@ -1091,6 +1116,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <option value="Diterima">✅ Diterima & Disetujui</option>
                           <option value="Ditolak">❌ Ditolak</option>
                           <option value="Sedang Dipajang (Live)">🔥 Sedang Dipajang (Live)</option>
+                          <option value="Booked (Di-DP)">🔒 Booked (Di-DP)</option>
                           <option value="Terjual">💰 Terjual</option>
                           <option value="Selesai & Dicairkan">🎉 Selesai & Dicairkan</option>
                         </select>

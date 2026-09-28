@@ -9,7 +9,12 @@ import {
   Share2,
   Check,
 } from 'lucide-react';
-import { ConsignmentItem, ItemCategory, ADMIN_CONTACT } from '../types/consignment';
+import {
+  ConsignmentItem,
+  ItemCategory,
+  KECAMATAN_MAJALENGKA,
+  ADMIN_CONTACT,
+} from '../types/consignment';
 import {
   formatRupiah,
   parseRupiahInput,
@@ -17,6 +22,7 @@ import {
   getTenorTimeline,
 } from '../utils/formatters';
 import { generateBuyerInquiryWhatsAppUrl } from '../utils/captionGenerator';
+import { calculateMajalengkaCodAndCourier } from '../utils/majalengkaCodCalculator';
 
 interface LiveCatalogSectionProps {
   items: ConsignmentItem[];
@@ -71,6 +77,7 @@ export const LiveCatalogSection: React.FC<LiveCatalogSectionProps> = ({
   // Buyer Negotiation & COD Point State inside Detail Modal
   const [purchaseMode, setPurchaseMode] = useState<'fixed' | 'nego'>('fixed');
   const [negoOfferRaw, setNegoOfferRaw] = useState('');
+  const [buyerKecamatan, setBuyerKecamatan] = useState<string>('Majalengka');
   const [selectedCodPoint, setSelectedCodPoint] = useState<string>(MAJALENGKA_COD_POINTS[0]);
 
   const [wishlistIds, setWishlistIds] = useState<string[]>(() => {
@@ -205,7 +212,8 @@ export const LiveCatalogSection: React.FC<LiveCatalogSectionProps> = ({
     const est = calculateListingEstimates(item.nettPrice);
     const defaultNego = Math.max(10000, est.suggestedListingPrice - 15000);
     setNegoOfferRaw(defaultNego.toLocaleString('id-ID'));
-    setSelectedCodPoint(`Sesuai Lokasi Barang (Kec. ${item.kecamatan})`);
+    const codEst = calculateMajalengkaCodAndCourier(item.kecamatan, buyerKecamatan);
+    setSelectedCodPoint(codEst.recommendedMidpointCod);
   };
 
   return (
@@ -338,7 +346,7 @@ export const LiveCatalogSection: React.FC<LiveCatalogSectionProps> = ({
                 : onlyPriceDrop
                 ? 'Belum Ada Barang yang Sedang Promo Turun Harga'
                 : items.length === 0
-                ? 'Belum Ada Barang berstatus "Sedang Dipajang (Live)"'
+                ? 'Belum Ada Barang di Etalase Saat Ini'
                 : 'Barang Tidak Ditemukan'}
             </h3>
             <p className="text-xs text-slate-500 max-w-md mx-auto">
@@ -347,7 +355,7 @@ export const LiveCatalogSection: React.FC<LiveCatalogSectionProps> = ({
                 : onlyPriceDrop
                 ? 'Matikan filter "Promo Turun Harga" untuk melihat seluruh koleksi barang siap pakai.'
                 : items.length === 0
-                ? 'Barang yang telah lolos kurasi dan diubah statusnya oleh Admin menjadi "Sedang Dipajang (Live)" akan otomatis tampil secara real-time di etalase ini.'
+                ? 'Setiap barang yang masuk dan aktif akan otomatis tampil secara real-time di etalase ini.'
                 : 'Coba gunakan kata kunci pencarian lain atau pilih kategori "Semua".'}
             </p>
           </div>
@@ -411,11 +419,32 @@ export const LiveCatalogSection: React.FC<LiveCatalogSectionProps> = ({
                       </span>
                     </div>
 
-                    {/* Top Left Ticket ID & Price Drop Badge */}
+                    {/* Top Left Ticket ID, Status & Price Drop Badge */}
                     <div className="absolute top-3 left-3 flex flex-col gap-1.5 items-start">
-                      <span className="bg-[#1B365D]/90 backdrop-blur-xs text-amber-300 px-2.5 py-1 rounded-lg font-mono font-bold text-[11px]">
-                        {item.id}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="bg-[#1B365D]/90 backdrop-blur-xs text-amber-300 px-2.5 py-1 rounded-lg font-mono font-bold text-[11px]">
+                          {item.id}
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded-lg text-[10px] font-extrabold backdrop-blur-xs shadow-xs ${
+                            item.status === 'Booked (Di-DP)' || item.postStatus === 'Booked'
+                              ? 'bg-orange-600/95 text-white'
+                              : item.status === 'Sedang Dipajang (Live)'
+                              ? 'bg-emerald-600/95 text-white'
+                              : item.status === 'Diterima'
+                              ? 'bg-blue-600/95 text-white'
+                              : 'bg-amber-400/95 text-stone-950'
+                          }`}
+                        >
+                          {item.status === 'Booked (Di-DP)' || item.postStatus === 'Booked'
+                            ? 'BOOKED / DI-DP'
+                            : item.status === 'Sedang Dipajang (Live)'
+                            ? 'LIVE'
+                            : item.status === 'Diterima'
+                            ? 'TERVERIFIKASI'
+                            : 'BARU MASUK'}
+                        </span>
+                      </div>
                       {hasPriceDrop && (
                         <span className="bg-rose-600 text-white px-2.5 py-1 rounded-lg font-extrabold text-[10px] shadow-sm">
                           TURUN HARGA -{discountPct}%
@@ -522,10 +551,18 @@ export const LiveCatalogSection: React.FC<LiveCatalogSectionProps> = ({
                       href={buyerWaUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors"
+                      className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-white text-xs font-bold transition-colors ${
+                        item.status === 'Booked (Di-DP)' || item.postStatus === 'Booked'
+                          ? 'bg-orange-600 hover:bg-orange-700'
+                          : 'bg-emerald-600 hover:bg-emerald-700'
+                      }`}
                     >
                       <MessageCircle className="w-3.5 h-3.5" />
-                      <span>Beli</span>
+                      <span>
+                        {item.status === 'Booked (Di-DP)' || item.postStatus === 'Booked'
+                          ? 'Antre'
+                          : 'Beli'}
+                      </span>
                     </a>
                   </div>
                 </div>
@@ -793,6 +830,12 @@ export const LiveCatalogSection: React.FC<LiveCatalogSectionProps> = ({
           : null;
 
         const parsedNegoOffer = parseRupiahInput(negoOfferRaw);
+        const codEstimation = calculateMajalengkaCodAndCourier(
+          selectedItem.kecamatan,
+          buyerKecamatan
+        );
+        const isBookedItem =
+          selectedItem.status === 'Booked (Di-DP)' || selectedItem.postStatus === 'Booked';
         const buyerWaUrl = generateBuyerInquiryWhatsAppUrl(selectedItem, adminWhatsAppNumber, {
           offerPrice: purchaseMode === 'nego' ? parsedNegoOffer : undefined,
           codPoint: selectedCodPoint,
@@ -933,15 +976,27 @@ export const LiveCatalogSection: React.FC<LiveCatalogSectionProps> = ({
                   </p>
                 </div>
 
-                {/* OPSI NEGO TIPIS & PILIH TITIK COD MAJALENGKA */}
+                {isBookedItem && (
+                  <div className="p-3.5 rounded-2xl bg-orange-50 border border-orange-300 text-orange-950 text-xs space-y-1">
+                    <div className="font-extrabold flex items-center gap-1.5 text-orange-800">
+                      <span>🔒 Status Saat Ini: BOOKED / SEDANG DI-DP</span>
+                    </div>
+                    <p className="text-[11px] text-orange-900 leading-relaxed">
+                      Barang ini sedang di-DP oleh calon pembeli pertama. Namun Anda tetap dapat menekan tombol{' '}
+                      <strong>Antre via WhatsApp</strong> di bawah agar Admin Esteh langsung menghubungi Anda jika transaksi sebelumnya batal.
+                    </p>
+                  </div>
+                )}
+
+                {/* OPSI NEGO TIPIS & KALKULATOR COD / KURIR LOKAL 26 KECAMATAN MAJALENGKA */}
                 <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
                       <h4 className="text-xs font-extrabold text-slate-900">
-                        Opsi Pembelian & Titik COD Majalengka
+                        Opsi Pembelian & Kalkulator COD 26 Kecamatan Majalengka
                       </h4>
                       <p className="text-[11px] text-slate-500">
-                        Pilih beli harga pas atau ajukan tawaran nego tipis untuk diteruskan Admin Esteh ke penitip.
+                        Pilih beli harga pas atau ajukan tawaran nego tipis, lalu cek titik tengah COD & estimasi kurir lokal.
                       </p>
                     </div>
 
@@ -1012,15 +1067,69 @@ export const LiveCatalogSection: React.FC<LiveCatalogSectionProps> = ({
                     </div>
                   )}
 
+                  {/* Kalkulator Jarak & Ongkir Kurir Lokal Antar 26 Kecamatan Majalengka */}
+                  <div className="p-3.5 rounded-xl bg-white border border-slate-200 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <span className="text-[11px] font-extrabold text-[#1B365D] block">
+                          📍 Cek Titik Tengah COD & Ongkir dari Kec. {selectedItem.kecamatan}
+                        </span>
+                        <span className="text-[10px] text-slate-500">
+                          Pilih kecamatan tempat tinggal Anda di Kabupaten Majalengka:
+                        </span>
+                      </div>
+                      <select
+                        value={buyerKecamatan}
+                        onChange={(e) => {
+                          const newKec = e.target.value;
+                          setBuyerKecamatan(newKec);
+                          const newEst = calculateMajalengkaCodAndCourier(
+                            selectedItem.kecamatan,
+                            newKec
+                          );
+                          setSelectedCodPoint(newEst.recommendedMidpointCod);
+                        }}
+                        className="px-3 py-1.5 rounded-xl border border-slate-300 bg-slate-50 text-xs font-bold text-slate-800 focus:border-[#1B365D] focus:outline-hidden"
+                      >
+                        {KECAMATAN_MAJALENGKA.map((kec) => (
+                          <option key={kec} value={kec}>
+                            Lokasi Saya: Kec. {kec}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
+                      <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                        <span className="text-[10px] text-slate-400 block">Estimasi Jarak</span>
+                        <strong className="text-slate-800 font-mono">
+                          ± {codEstimation.estimatedDistanceKm} km
+                        </strong>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                        <span className="text-[10px] text-slate-400 block">Kurir Lokal Instan</span>
+                        <strong className="text-emerald-700 font-mono">
+                          {formatRupiah(codEstimation.localCourierFeeMin)} -{' '}
+                          {formatRupiah(codEstimation.localCourierFeeMax)}
+                        </strong>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                        <span className="text-[10px] text-slate-400 block">Ekspedisi Lokal (1 Hari)</span>
+                        <strong className="text-slate-800">Rp 9rb - Rp 13rb</strong>
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] text-slate-600 bg-amber-50/70 border border-amber-200/80 rounded-lg px-2.5 py-1.5">
+                      💡 {codEstimation.summaryNote}
+                    </p>
+                  </div>
+
                   <div className="space-y-1.5">
                     <label className="block text-xs font-bold text-slate-700">
-                      Pilih Titik COD / Metode Pengiriman di Majalengka:
+                      Pilih Titik COD / Metode Pengiriman (Tercantum di Chat WA):
                     </label>
                     <div className="flex flex-wrap gap-1.5">
-                      {[
-                        `Sesuai Lokasi Barang (Kec. ${selectedItem.kecamatan})`,
-                        ...MAJALENGKA_COD_POINTS.slice(1),
-                      ].map((point) => (
+                      {codEstimation.alternativeCodPoints.map((point) => (
                         <button
                           key={point}
                           type="button"
@@ -1046,11 +1155,17 @@ export const LiveCatalogSection: React.FC<LiveCatalogSectionProps> = ({
                     href={buyerWaUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs transition-colors"
+                    className={`w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-white font-extrabold text-xs transition-colors ${
+                      isBookedItem
+                        ? 'bg-orange-600 hover:bg-orange-700'
+                        : 'bg-emerald-600 hover:bg-emerald-700'
+                    }`}
                   >
                     <MessageCircle className="w-4 h-4" />
                     <span>
-                      {purchaseMode === 'nego'
+                      {isBookedItem
+                        ? 'Antre jika Batal via WhatsApp'
+                        : purchaseMode === 'nego'
                         ? `Ajukan Nego ${formatRupiah(parsedNegoOffer)} via WA`
                         : 'Beli / Booking COD via WhatsApp'}
                     </span>
