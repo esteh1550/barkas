@@ -72,6 +72,7 @@ export const ContentOutputCard: React.FC<ContentOutputCardProps> = ({
   const [captionTab, setCaptionTab] = useState<'feed' | 'story'>('feed');
   const [isCopied, setIsCopied] = useState(false);
   const [isCopiedLink, setIsCopiedLink] = useState(false);
+  const [isUploadingIg, setIsUploadingIg] = useState(false);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [isNotesOpen, setIsNotesOpen] = useState(
     Boolean(item.adminRackLocation || item.adminBottomNettPrice || item.adminInternalNotes)
@@ -504,12 +505,22 @@ export const ContentOutputCard: React.FC<ContentOutputCardProps> = ({
               {onTriggerIgAutoPost && (
                 <button
                   type="button"
-                  onClick={() => onTriggerIgAutoPost(item, 'manual_button')}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#1B365D] hover:bg-[#24477A] active:scale-[0.99] text-white font-bold text-xs sm:text-sm rounded-2xl shadow-md transition-all cursor-pointer"
+                  disabled={isUploadingIg}
+                  onClick={async () => {
+                    setIsUploadingIg(true);
+                    try {
+                      await onTriggerIgAutoPost(item, 'manual_button');
+                    } finally {
+                      setIsUploadingIg(false);
+                    }
+                  }}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#1B365D] hover:bg-[#24477A] active:scale-[0.99] disabled:opacity-70 text-white font-bold text-xs sm:text-sm rounded-2xl shadow-md transition-all cursor-pointer"
                   title="Upload Otomatis Foto & Caption ke Instagram Feed dan Story"
                 >
                   <Instagram className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span>Auto-Upload IG Feed & Story</span>
+                  <span>
+                    {isUploadingIg ? 'Mengirim ke Instagram...' : 'Auto-Upload IG Feed & Story'}
+                  </span>
                 </button>
               )}
             </div>

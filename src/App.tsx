@@ -631,12 +631,14 @@ export default function App() {
       // Update localStorage immediately for instant responsiveness & offline fallback
       saveSubmissions((prev) => [newItem, ...prev.filter((s) => s.id !== newItem.id)]);
 
-      // Save to Firebase Firestore so all devices receive real-time update
-      try {
-        await saveSubmissionToFirebase(newItem);
-      } catch (firebaseErr) {
+      // Save to Firebase Firestore with non-blocking UI race (max 1.2s UI wait, continues syncing in background)
+      const cloudSavePromise = saveSubmissionToFirebase(newItem).catch((firebaseErr) => {
         console.warn('Firestore sync warning (data remains saved in localStorage):', firebaseErr);
-      }
+      });
+      await Promise.race([
+        cloudSavePromise,
+        new Promise((resolve) => setTimeout(resolve, 1200)),
+      ]);
 
       // Trigger Instagram Auto-Post if enabled on new submission
       triggerInstagramAutoPublish(newItem, 'new_submission').catch(() => {
@@ -1140,11 +1142,9 @@ export default function App() {
                 }
                 return updated;
               });
-              try {
-                await saveWantedRequestToFirebase(newReq);
-              } catch {
+              saveWantedRequestToFirebase(newReq).catch(() => {
                 // ignore offline error, saved locally
-              }
+              });
               showAppToast('✅ Permintaan cari barang Anda berhasil ditayangkan di Papan Wanted!');
             }}
             onFulfillViaForm={(prefill) => {

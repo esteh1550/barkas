@@ -227,7 +227,7 @@ export const renderWatermarkedImagesForItem = async (
         const feedCanvas = document.createElement('canvas');
         const feedCtx = feedCanvas.getContext('2d');
 
-        const targetWidth = Math.max(img.width, 1080);
+        const targetWidth = Math.min(Math.max(img.width, 800), 960);
         const scaleRatio = targetWidth / img.width;
         const rawTargetHeight = Math.round(img.height * scaleRatio);
         // Clamp aspect ratio to Instagram's allowed Feed range (0.8 to 1.91)
@@ -388,7 +388,7 @@ export const renderWatermarkedImagesForItem = async (
           }
         }
 
-        const feedDataUrl = feedCanvas.toDataURL('image/jpeg', 0.92);
+        const feedDataUrl = feedCanvas.toDataURL('image/jpeg', 0.82);
 
         // ------------------------------------------------------------
         // 2. RENDER 9:16 INSTAGRAM STORY POSTER (1080 x 1920)
@@ -562,7 +562,7 @@ export const renderWatermarkedImagesForItem = async (
           );
         }
 
-        const storyDataUrl = storyCanvas.toDataURL('image/jpeg', 0.92);
+        const storyDataUrl = storyCanvas.toDataURL('image/jpeg', 0.80);
         resolve({ feedDataUrl, storyDataUrl });
       } catch {
         resolve({ feedDataUrl: rawPhoto, storyDataUrl: rawPhoto });

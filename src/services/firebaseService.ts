@@ -180,7 +180,7 @@ const sanitizeConsignmentItemForFirestore = (
  * Re-compress base64 photos if total document size approaches Firestore 1 MiB limit (~900 KB safety threshold)
  */
 const ensurePhotosFitFirestoreLimit = async (photos: string[]): Promise<string[]> => {
-  const MAX_TOTAL_CHARS = 850_000; // ~850 KB safe margin under 1,048,576 bytes
+  const MAX_TOTAL_CHARS = 450_000; // ~450 KB fast-sync threshold for instant Firestore writes
   const totalChars = photos.reduce((acc, p) => acc + (p ? p.length : 0), 0);
   if (totalChars <= MAX_TOTAL_CHARS || typeof document === 'undefined') {
     return photos;
@@ -215,7 +215,7 @@ const ensurePhotosFitFirestoreLimit = async (photos: string[]): Promise<string[]
     });
   };
 
-  return Promise.all(photos.map((p) => compressDataUrl(p, 720, 0.62)));
+  return Promise.all(photos.map((p) => compressDataUrl(p, 640, 0.58)));
 };
 
 /**

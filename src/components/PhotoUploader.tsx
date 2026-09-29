@@ -28,7 +28,7 @@ export const PhotoUploader: React.FC<PhotoUploaderProps> = ({
           const canvas = document.createElement('canvas');
           let width = img.width;
           let height = img.height;
-          const maxDim = 850;
+          const maxDim = 720;
 
           if (width > height && width > maxDim) {
             height = Math.round((height * maxDim) / width);
@@ -46,7 +46,7 @@ export const PhotoUploader: React.FC<PhotoUploaderProps> = ({
             return;
           }
           ctx.drawImage(img, 0, 0, width, height);
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.74);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.68);
           resolve(dataUrl);
         };
         img.onerror = reject;
