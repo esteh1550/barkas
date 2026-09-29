@@ -64,6 +64,7 @@ import { triggerInstagramAutoPublish } from '../services/instagramAutomation';
 interface AdminDashboardProps {
   submissions: ConsignmentItem[];
   isFirebaseConnected?: boolean;
+  onRefreshCloud?: () => Promise<number>;
   onUpdateStatus: (id: string, newStatus: SubmissionStatus) => void;
   onUpdatePostStatus?: (id: string, newPostStatus: AdminPostStatus) => void;
   onUpdatePrice?: (id: string, newNettPrice: number, previousNettPrice?: number) => Promise<void>;
@@ -96,6 +97,7 @@ const DEFAULT_PIN = 'barkas2026';
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   submissions,
   isFirebaseConnected = false,
+  onRefreshCloud,
   onUpdateStatus,
   onUpdatePostStatus,
   onUpdatePrice,
@@ -567,6 +569,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     />
                     {isFirebaseConnected ? 'Firestore Live Sync' : 'Local Mode'}
                   </span>
+                  {onRefreshCloud && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const count = await onRefreshCloud();
+                        showToast(`✅ Data Cloud berhasil disegarkan (${count} barang di server).`);
+                      }}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400/20 hover:bg-amber-400/35 text-amber-200 border border-amber-400/40 cursor-pointer transition-colors"
+                      title="Tarik data terbaru langsung dari Server Cloud"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      <span>Sinkronkan</span>
+                    </button>
+                  )}
                 </div>
                 <p className="text-[11px] text-amber-200/90 hidden sm:block">
                   info.barkasmajalengka Consignment Hub • WA: {ADMIN_CONTACT.whatsappFormatted}

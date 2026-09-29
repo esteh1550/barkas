@@ -281,6 +281,58 @@ export const InstagramAutoPostModal: React.FC<InstagramAutoPostModalProps> = ({
             </label>
           </div>
 
+          {/* Feed Photo Layout Selector (Collage vs Single) */}
+          <div className="space-y-2">
+            <label className="block font-extrabold text-slate-800 uppercase tracking-wider">
+              Format Tampilan Foto di Feed Instagram:
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={() => setConfig((prev) => ({ ...prev, feedPhotoMode: 'collage' }))}
+                className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                  (config.feedPhotoMode || 'collage') === 'collage'
+                    ? 'border-[#1B365D] bg-[#1B365D]/5 ring-2 ring-[#1B365D]/20'
+                    : 'border-slate-200 bg-slate-50 hover:bg-slate-100'
+                }`}
+              >
+                <div className="font-extrabold text-slate-900 flex items-center justify-between">
+                  <span>✨ Kolase Katalog (Foto 1 + Detail 2, 3, 4)</span>
+                  {(config.feedPhotoMode || 'collage') === 'collage' && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-400 text-stone-950 font-black">
+                      Aktif
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Otomatis menampilkan Foto Utama besar + kotak kecil Foto Detail #2, #3, #4 berbingkai emas dalam 1 postingan Feed tanpa perlu ubah Make.com!
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setConfig((prev) => ({ ...prev, feedPhotoMode: 'single' }))}
+                className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                  config.feedPhotoMode === 'single'
+                    ? 'border-[#1B365D] bg-[#1B365D]/5 ring-2 ring-[#1B365D]/20'
+                    : 'border-slate-200 bg-slate-50 hover:bg-slate-100'
+                }`}
+              >
+                <div className="font-extrabold text-slate-900 flex items-center justify-between">
+                  <span>🖼️ 1 Foto Utama Saja (Full)</span>
+                  {config.feedPhotoMode === 'single' && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-400 text-stone-950 font-black">
+                      Aktif
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Hanya menampilkan Foto Utama (#1) penuh dengan bar Watermark & Harga di bawahnya.
+                </p>
+              </button>
+            </div>
+          </div>
+
           {/* Webhook URL Input (Make.com / Zapier / n8n) */}
           <div className="space-y-1.5">
             <label className="block font-extrabold text-slate-800 uppercase tracking-wider">

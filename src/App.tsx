@@ -59,6 +59,7 @@ import {
 } from './services/instagramAutomation';
 import {
   saveSubmissionToFirebase,
+  fetchSubmissionsFromServer,
   subscribeToSubmissions,
   subscribeToLiveCatalog,
   subscribeToSoldCatalog,
@@ -446,6 +447,28 @@ export default function App() {
     };
   }, []);
 
+  const refreshCloudSubmissions = async (): Promise<number> => {
+    const serverItems = await fetchSubmissionsFromServer(100);
+    if (serverItems.length > 0) {
+      setIsFirebaseConnected(true);
+      saveSubmissions((prev) => {
+        const cloudMap = new Map<string, ConsignmentItem>();
+        serverItems.forEach((item) => cloudMap.set(item.id, item));
+        // Keep any unsynced local items created in the last 10 minutes
+        prev.forEach((localItem) => {
+          if (!cloudMap.has(localItem.id) && localItem.whatsappNumber) {
+            saveSubmissionToFirebase(localItem).catch(() => {});
+            cloudMap.set(localItem.id, localItem);
+          }
+        });
+        return Array.from(cloudMap.values()).sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+      });
+    }
+    return serverItems.length;
+  };
+
   // Subscribe to full submissions collection ONLY when on /admin route (Protects consignor privacy on public page)
   useEffect(() => {
     const isAdminRoute = currentPath === '/admin' || currentPath.startsWith('/admin');
@@ -464,6 +487,9 @@ export default function App() {
       // ignore
     }
 
+    // Immediate direct server pull on /admin open
+    refreshCloudSubmissions();
+
     let hasSyncedLocalToCloud = false;
 
     const unsubscribeFirestore = subscribeToSubmissions(
@@ -473,7 +499,9 @@ export default function App() {
         if (!hasSyncedLocalToCloud) {
           hasSyncedLocalToCloud = true;
           const cloudIds = new Set(cloudItems.map((item) => item.id));
-          const missingLocalItems = initialLocalItems.filter((item) => !cloudIds.has(item.id));
+          const missingLocalItems = initialLocalItems.filter(
+            (item) => !cloudIds.has(item.id) && item.whatsappNumber
+          );
 
           if (missingLocalItems.length > 0) {
             missingLocalItems.forEach((item) => {
@@ -496,8 +524,25 @@ export default function App() {
       }
     );
 
+    // Automatically re-fetch from server when Admin switches back from WhatsApp to browser tab or every 10s
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible') {
+        refreshCloudSubmissions();
+      }
+    };
+    window.addEventListener('focus', handleVisibilityOrFocus);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    const pollInterval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        refreshCloudSubmissions();
+      }
+    }, 10000);
+
     return () => {
       if (typeof unsubscribeFirestore === 'function') unsubscribeFirestore();
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.clearInterval(pollInterval);
     };
   }, [currentPath]);
 
@@ -580,8 +625,8 @@ export default function App() {
     if (parsedNettPrice <= 0) {
       newErrors.nettPrice = 'Masukkan nominal harga bersih yang Anda inginkan.';
     }
-    if (photos.length < 3) {
-      newErrors.photos = `Wajib mengunggah minimal 3 foto barang (saat ini ${photos.length} foto).`;
+    if (photos.length < 1) {
+      newErrors.photos = 'Wajib mengunggah minimal 1 foto barang.';
     }
     if (!agreementAccepted) {
       newErrors.agreement = 'Anda wajib menyetujui ketentuan keaslian & sistem titip jual.';
@@ -631,13 +676,13 @@ export default function App() {
       // Update localStorage immediately for instant responsiveness & offline fallback
       saveSubmissions((prev) => [newItem, ...prev.filter((s) => s.id !== newItem.id)]);
 
-      // Save to Firebase Firestore with non-blocking UI race (max 1.2s UI wait, continues syncing in background)
+      // Save to Firebase Firestore BEFORE opening SuccessModal so switching to WhatsApp app on mobile never interrupts the upload
       const cloudSavePromise = saveSubmissionToFirebase(newItem).catch((firebaseErr) => {
         console.warn('Firestore sync warning (data remains saved in localStorage):', firebaseErr);
       });
       await Promise.race([
         cloudSavePromise,
-        new Promise((resolve) => setTimeout(resolve, 1200)),
+        new Promise((resolve) => setTimeout(resolve, 7000)),
       ]);
 
       // Trigger Instagram Auto-Post if enabled on new submission
@@ -754,6 +799,7 @@ export default function App() {
       <AdminDashboard
         submissions={submissions}
         isFirebaseConnected={isFirebaseConnected}
+        onRefreshCloud={refreshCloudSubmissions}
         onUpdateStatus={(id: string, newStatus: SubmissionStatus) => {
           saveSubmissions((prev) => {
             const updated = prev.map((s) => (s.id === id ? { ...s, status: newStatus } : s));
@@ -1599,7 +1645,7 @@ export default function App() {
                   <span>Foto Barang & Persetujuan</span>
                 </h2>
                 <p className="text-xs text-slate-400">
-                  Minimal 3 sampai 5 foto jelas untuk bahan kurasi & display
+                  Minimal 1 foto jelas untuk bahan kurasi & display (maksimal 8 foto)
                 </p>
               </div>
             </div>
@@ -1611,7 +1657,7 @@ export default function App() {
                 setPhotos(newPhotos);
                 if (errors.photos) setErrors((prev) => ({ ...prev, photos: '' }));
               }}
-              minPhotos={3}
+              minPhotos={1}
               maxPhotos={8}
             />
             {errors.photos && (

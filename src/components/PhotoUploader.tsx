@@ -11,7 +11,7 @@ interface PhotoUploaderProps {
 export const PhotoUploader: React.FC<PhotoUploaderProps> = ({
   photos,
   onChange,
-  minPhotos = 3,
+  minPhotos = 1,
   maxPhotos = 8,
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -28,7 +28,7 @@ export const PhotoUploader: React.FC<PhotoUploaderProps> = ({
           const canvas = document.createElement('canvas');
           let width = img.width;
           let height = img.height;
-          const maxDim = 720;
+          const maxDim = 600;
 
           if (width > height && width > maxDim) {
             height = Math.round((height * maxDim) / width);
@@ -46,7 +46,7 @@ export const PhotoUploader: React.FC<PhotoUploaderProps> = ({
             return;
           }
           ctx.drawImage(img, 0, 0, width, height);
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.68);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.60);
           resolve(dataUrl);
         };
         img.onerror = reject;
@@ -110,7 +110,7 @@ export const PhotoUploader: React.FC<PhotoUploaderProps> = ({
             <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
           )}
           <span>
-            {photos.length}/{minPhotos} Foto (Min. {minPhotos})
+            {photos.length}/{maxPhotos} Foto (Min. {minPhotos})
           </span>
         </span>
       </div>

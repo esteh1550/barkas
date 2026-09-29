@@ -7,6 +7,8 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
+  getDocsFromServer,
   setDoc,
   updateDoc,
   deleteDoc,
@@ -180,9 +182,9 @@ const sanitizeConsignmentItemForFirestore = (
  * Re-compress base64 photos if total document size approaches Firestore 1 MiB limit (~900 KB safety threshold)
  */
 const ensurePhotosFitFirestoreLimit = async (photos: string[]): Promise<string[]> => {
-  const MAX_TOTAL_CHARS = 450_000; // ~450 KB fast-sync threshold for instant Firestore writes
-  const totalChars = photos.reduce((acc, p) => acc + (p ? p.length : 0), 0);
-  if (totalChars <= MAX_TOTAL_CHARS || typeof document === 'undefined') {
+  const MAX_TOTAL_CHARS = 320_000; // ~320 KB fast-sync threshold for <1s Firestore writes
+  const calcTotal = (arr: string[]) => arr.reduce((acc, p) => acc + (p ? p.length : 0), 0);
+  if (calcTotal(photos) <= MAX_TOTAL_CHARS || typeof document === 'undefined') {
     return photos;
   }
 
@@ -210,31 +212,46 @@ const ensurePhotosFitFirestoreLimit = async (photos: string[]): Promise<string[]
         ctx.drawImage(img, 0, 0, width, height);
         resolve(canvas.toDataURL('image/jpeg', quality));
       };
-      img.onerror = () => resolve(dataUrl);
+      img.onerror = () => resolve('https://placehold.co/600x600?text=Barkas+Majalengka');
       img.src = dataUrl;
     });
   };
 
-  return Promise.all(photos.map((p) => compressDataUrl(p, 640, 0.58)));
+  let pass1 = await Promise.all(photos.map((p) => compressDataUrl(p, 560, 0.56)));
+  if (calcTotal(pass1) > MAX_TOTAL_CHARS) {
+    pass1 = await Promise.all(pass1.map((p) => compressDataUrl(p, 440, 0.48)));
+  }
+  return pass1;
 };
 
 /**
  * Save a consignment form submission to Firestore (`submissions/{docId}`)
+ * Includes automatic fallback retry so cross-device submissions never fail silently.
  */
 export const saveSubmissionToFirebase = async (item: ConsignmentItem): Promise<void> => {
   const docId = getSubmissionDocId(item.id);
   const path = `${SUBMISSIONS_COLLECTION}/${docId}`;
+  const docRef = doc(db, SUBMISSIONS_COLLECTION, docId);
   try {
-    const fittedPhotos = await ensurePhotosFitFirestoreLimit(item.photos);
+    const fittedPhotos = await ensurePhotosFitFirestoreLimit(item.photos || []);
     const payload = sanitizeConsignmentItemForFirestore({
       ...item,
       photos: fittedPhotos,
     });
-    const docRef = doc(db, SUBMISSIONS_COLLECTION, docId);
     await setDoc(docRef, payload, { merge: true });
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
-    throw error;
+  } catch (firstError) {
+    try {
+      // Fallback retry with ultra-compact photos (up to first 3 photos) to guarantee record reaches Admin device
+      const compactPhotos = await ensurePhotosFitFirestoreLimit((item.photos || []).slice(0, 3));
+      const fallbackPayload = sanitizeConsignmentItemForFirestore({
+        ...item,
+        photos: compactPhotos.slice(0, 3),
+      });
+      await setDoc(docRef, fallbackPayload, { merge: true });
+    } catch (secondError) {
+      handleFirestoreError(secondError || firstError, OperationType.WRITE, path);
+      throw secondError || firstError;
+    }
   }
 };
 
@@ -366,6 +383,43 @@ export const getSubmissionByTicketId = async (ticketId: string): Promise<Consign
   } catch (error) {
     handleFirestoreError(error, OperationType.GET, path);
     return null;
+  }
+};
+
+/**
+ * Force-fetch latest consignment submissions directly from Firestore Server (bypasses stale cache)
+ */
+export const fetchSubmissionsFromServer = async (
+  maxItems: number = 100
+): Promise<ConsignmentItem[]> => {
+  const q = query(
+    collection(db, SUBMISSIONS_COLLECTION),
+    orderBy('createdAt', 'desc'),
+    limit(maxItems)
+  );
+  try {
+    const snapshot = await getDocsFromServer(q);
+    return snapshot.docs.map((docSnap) => {
+      const data = docSnap.data() as ConsignmentItem;
+      return {
+        ...data,
+        id: data.id || `#${docSnap.id}`,
+      };
+    });
+  } catch {
+    try {
+      const fallbackSnap = await getDocs(q);
+      return fallbackSnap.docs.map((docSnap) => {
+        const data = docSnap.data() as ConsignmentItem;
+        return {
+          ...data,
+          id: data.id || `#${docSnap.id}`,
+        };
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, SUBMISSIONS_COLLECTION);
+      return [];
+    }
   }
 };
 

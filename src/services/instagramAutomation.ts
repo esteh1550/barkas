@@ -13,6 +13,7 @@ export interface InstagramAutoPostConfig {
   webhookUrl: string;
   igBusinessAccountId: string;
   metaAccessToken: string;
+  feedPhotoMode?: 'single' | 'collage';
 }
 
 const IG_CONFIG_STORAGE_KEY = 'barkas_ig_autopost_config_v1';
@@ -23,7 +24,11 @@ export const getInstagramAutoPostConfig = (): InstagramAutoPostConfig => {
   try {
     const saved = localStorage.getItem(IG_CONFIG_STORAGE_KEY);
     if (saved) {
-      return JSON.parse(saved);
+      const parsed = JSON.parse(saved);
+      return {
+        feedPhotoMode: 'collage',
+        ...parsed,
+      };
     }
   } catch {
     // ignore
@@ -34,6 +39,7 @@ export const getInstagramAutoPostConfig = (): InstagramAutoPostConfig => {
     webhookUrl: '',
     igBusinessAccountId: '',
     metaAccessToken: '',
+    feedPhotoMode: 'collage',
   };
 };
 
@@ -46,6 +52,7 @@ export const saveInstagramAutoPostConfig = async (
     webhookUrl: (config.webhookUrl || '').trim().slice(0, 500),
     igBusinessAccountId: (config.igBusinessAccountId || '').trim().slice(0, 120),
     metaAccessToken: (config.metaAccessToken || '').trim().slice(0, 600),
+    feedPhotoMode: config.feedPhotoMode === 'single' ? 'single' : 'collage',
   };
 
   try {
@@ -193,7 +200,8 @@ const drawWrappedText = (
  * so automatic uploads to Make.com / Cloudinary / Instagram always include the official watermark.
  */
 export const renderWatermarkedImagesForItem = async (
-  item: ConsignmentItem
+  item: ConsignmentItem,
+  feedPhotoMode: 'single' | 'collage' = 'collage'
 ): Promise<{ feedDataUrl: string; storyDataUrl: string }> => {
   const rawPhoto = item.photos?.[0] || '';
   if (!rawPhoto || typeof document === 'undefined') {
@@ -215,12 +223,40 @@ export const renderWatermarkedImagesForItem = async (
     item.status === 'Selesai & Dicairkan' ||
     item.postStatus === 'Sold Out';
 
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
+  // Helper to load an HTMLImageElement safely
+  const loadImg = (src: string): Promise<HTMLImageElement | null> =>
+    new Promise((res) => {
+      if (!src) {
+        res(null);
+        return;
+      }
+      const image = new Image();
+      image.crossOrigin = 'anonymous';
+      image.onload = () => res(image);
+      image.onerror = () => res(null);
+      image.src = src;
+    });
 
-    img.onload = () => {
-      try {
+  const extraPhotoUrls =
+    feedPhotoMode === 'collage' && Array.isArray(item.photos) && item.photos.length > 1
+      ? item.photos.slice(1, 4)
+      : [];
+
+  const [mainImg, ...extraImgsLoaded] = await Promise.all([
+    loadImg(rawPhoto),
+    ...extraPhotoUrls.map((u) => loadImg(u)),
+  ]);
+
+  const extraImgs = extraImgsLoaded.filter((im): im is HTMLImageElement => im !== null);
+
+  if (!mainImg) {
+    return { feedDataUrl: rawPhoto, storyDataUrl: rawPhoto };
+  }
+
+  const img = mainImg;
+
+  return new Promise((resolve) => {
+    try {
         // ------------------------------------------------------------
         // 1. RENDER WATERMARKED FEED PHOTO (Clamped to IG 4:5 - 1.91:1)
         // ------------------------------------------------------------
@@ -269,6 +305,70 @@ export const renderWatermarkedImagesForItem = async (
 
           const paddingX = Math.round(targetWidth * 0.035);
           const centerY = targetHeight - Math.round(barHeight * 0.45);
+
+          // Multi-Photo Detail Thumbnails Strip (Foto 2, 3, 4) right above the bottom watermark bar
+          if (extraImgs.length > 0 && !isSold) {
+            const thumbSize = Math.round(targetWidth * 0.19);
+            const thumbGap = Math.round(targetWidth * 0.016);
+            const thumbY = targetHeight - barHeight - thumbSize - Math.round(targetHeight * 0.018);
+
+            extraImgs.forEach((detailImg, idx) => {
+              const thumbX =
+                targetWidth -
+                paddingX -
+                (extraImgs.length - idx) * thumbSize -
+                (extraImgs.length - 1 - idx) * thumbGap;
+
+              // Subtle dark backing shadow
+              feedCtx.save();
+              feedCtx.fillStyle = 'rgba(15, 41, 30, 0.92)';
+              drawRoundedRect(feedCtx, thumbX - 3, thumbY - 3, thumbSize + 6, thumbSize + 6, 14);
+              feedCtx.fill();
+
+              drawRoundedRect(feedCtx, thumbX, thumbY, thumbSize, thumbSize, 12);
+              feedCtx.clip();
+
+              const tScale = Math.max(
+                thumbSize / detailImg.width,
+                thumbSize / detailImg.height
+              );
+              const tW = detailImg.width * tScale;
+              const tH = detailImg.height * tScale;
+              const tX = thumbX + (thumbSize - tW) / 2;
+              const tY = thumbY + (thumbSize - tH) / 2;
+              feedCtx.drawImage(detailImg, tX, tY, tW, tH);
+              feedCtx.restore();
+
+              // Gold border around detail thumbnail
+              feedCtx.strokeStyle = '#FBBF24';
+              feedCtx.lineWidth = 3;
+              drawRoundedRect(feedCtx, thumbX, thumbY, thumbSize, thumbSize, 12);
+              feedCtx.stroke();
+
+              // Small label pill "Foto #2" etc.
+              const labelW = Math.round(thumbSize * 0.56);
+              const labelH = Math.round(thumbSize * 0.22);
+              feedCtx.fillStyle = 'rgba(15, 41, 30, 0.9)';
+              drawRoundedRect(
+                feedCtx,
+                thumbX + 6,
+                thumbY + thumbSize - labelH - 6,
+                labelW,
+                labelH,
+                6
+              );
+              feedCtx.fill();
+              feedCtx.fillStyle = '#FDE68A';
+              feedCtx.font = `bold ${Math.max(Math.round(labelH * 0.62), 11)}px system-ui, sans-serif`;
+              feedCtx.textAlign = 'center';
+              feedCtx.textBaseline = 'middle';
+              feedCtx.fillText(
+                `Foto ${idx + 2}`,
+                thumbX + 6 + labelW / 2,
+                thumbY + thumbSize - labelH / 2 - 6
+              );
+            });
+          }
 
           // Left Text: @info.barkasmajalengka + Kecamatan
           const fontSizeBrand = Math.max(Math.round(targetWidth * 0.025), 20);
@@ -567,13 +667,6 @@ export const renderWatermarkedImagesForItem = async (
       } catch {
         resolve({ feedDataUrl: rawPhoto, storyDataUrl: rawPhoto });
       }
-    };
-
-    img.onerror = () => {
-      resolve({ feedDataUrl: rawPhoto, storyDataUrl: rawPhoto });
-    };
-
-    img.src = rawPhoto;
   });
 };
 
@@ -617,8 +710,8 @@ export const triggerInstagramAutoPublish = async (
       : 'https://barkas-two.vercel.app';
   const catalogUrl = `${origin}/?item=${encodeURIComponent(cleanTicket)}`;
 
-  // Automatically render watermarked Feed & 9:16 Story images on canvas before sending
-  const rendered = await renderWatermarkedImagesForItem(item);
+  // Automatically render watermarked Feed (with multi-photo detail thumbnails) & 9:16 Story images on canvas before sending
+  const rendered = await renderWatermarkedImagesForItem(item, config.feedPhotoMode || 'collage');
   const rawCoverPhoto = rendered.feedDataUrl || item.photos?.[0] || '';
   const rawStoryPoster = customStoryDataUrl || rendered.storyDataUrl || rawCoverPhoto;
   const cleanCoverBase64 = rawCoverPhoto.includes(';base64,')
