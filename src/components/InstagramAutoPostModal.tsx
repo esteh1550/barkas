@@ -14,6 +14,7 @@ import {
   InstagramAutoPostConfig,
   getInstagramAutoPostConfig,
   saveInstagramAutoPostConfig,
+  syncInstagramAutoPostConfigWithCloud,
 } from '../services/instagramAutomation';
 
 const MAKE_COM_AI_PROMPT = `Create a Make.com scenario for automatic Instagram Business publishing triggered by a Custom Webhook.
@@ -68,6 +69,9 @@ export const InstagramAutoPostModal: React.FC<InstagramAutoPostModalProps> = ({
       setConfig(getInstagramAutoPostConfig());
       setTestResult(null);
       setCopiedPrompt(false);
+      syncInstagramAutoPostConfigWithCloud().then((cloudCfg) => {
+        setConfig(cloudCfg);
+      });
     }
   }, [isOpen]);
 
@@ -83,11 +87,13 @@ export const InstagramAutoPostModal: React.FC<InstagramAutoPostModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    saveInstagramAutoPostConfig(config);
+    await saveInstagramAutoPostConfig(config);
     if (onSaved) {
-      onSaved('✅ Pengaturan Auto-Upload Instagram Feed & Story berhasil disimpan!');
+      onSaved(
+        '✅ Pengaturan Auto-Upload IG berhasil disimpan ke Cloud (otomatis aktif di semua HP/Laptop)!'
+      );
     }
     onClose();
   };

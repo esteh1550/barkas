@@ -215,6 +215,43 @@
         "notes",
         "status"
       ]
+    },
+    "AppSettings": {
+      "title": "AppSettings",
+      "description": "Pengaturan global aplikasi lintas perangkat (termasuk konfigurasi Webhook Auto-Post Instagram)",
+      "type": "object",
+      "properties": {
+        "enabledOnNewSubmission": {
+          "type": "boolean",
+          "description": "Aktifkan auto-post saat penitip mengirim form baru"
+        },
+        "enabledOnAdminLive": {
+          "type": "boolean",
+          "description": "Aktifkan auto-post saat admin mengubah status ke Posted (Live)"
+        },
+        "webhookUrl": {
+          "type": "string",
+          "description": "URL Webhook Make.com / Zapier untuk auto-post Instagram"
+        },
+        "igBusinessAccountId": {
+          "type": "string",
+          "description": "ID Akun Instagram Bisnis opsional"
+        },
+        "metaAccessToken": {
+          "type": "string",
+          "description": "Access Token Meta Graph API opsional"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu terakhir pengaturan diperbarui"
+        }
+      },
+      "required": [
+        "enabledOnNewSubmission",
+        "enabledOnAdminLive",
+        "webhookUrl"
+      ]
     }
   },
   "firestore": {
@@ -229,6 +266,12 @@
         "$ref": "#/entities/WantedRequest"
       },
       "description": "Koleksi papan permintaan titip cari barang warga Majalengka"
+    },
+    "/settings/{settingId}": {
+      "schema": {
+        "$ref": "#/entities/AppSettings"
+      },
+      "description": "Pengaturan global admin lintas perangkat (Webhook Make.com & Auto-Post IG)"
     }
   }
 }

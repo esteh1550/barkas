@@ -114,6 +114,26 @@ service cloud.firestore {
       allow delete: if true;
     }
 
+    function isValidAppSettings(data) {
+      return data.keys().hasAll([
+        'enabledOnNewSubmission',
+        'enabledOnAdminLive',
+        'webhookUrl'
+      ])
+      && data.enabledOnNewSubmission is bool
+      && data.enabledOnAdminLive is bool
+      && data.webhookUrl is string && data.webhookUrl.size() <= 500
+      && (!('igBusinessAccountId' in data) || (data.igBusinessAccountId is string && data.igBusinessAccountId.size() <= 120))
+      && (!('metaAccessToken' in data) || (data.metaAccessToken is string && data.metaAccessToken.size() <= 600))
+      && (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 60));
+    }
+
+    match /settings/{settingId} {
+      allow read: if true;
+      allow create, update: if isValidAppSettings(request.resource.data);
+      allow delete: if true;
+    }
+
     match /_connection_check/{docId} {
       allow read: if true;
     }

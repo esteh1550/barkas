@@ -53,7 +53,10 @@ import { OfflineIndicator } from './components/OfflineIndicator';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { initAuth } from './services/googleAuth';
 import { createConsignmentGoogleForm } from './services/googleForms';
-import { triggerInstagramAutoPublish } from './services/instagramAutomation';
+import {
+  triggerInstagramAutoPublish,
+  syncInstagramAutoPostConfigWithCloud,
+} from './services/instagramAutomation';
 import {
   saveSubmissionToFirebase,
   subscribeToSubmissions,
@@ -357,6 +360,7 @@ export default function App() {
   // Load initial settings & Google Auth listener
   useEffect(() => {
     testFirestoreConnection();
+    syncInstagramAutoPostConfigWithCloud();
 
     try {
       const savedAdmin = localStorage.getItem(ADMIN_PHONE_KEY);

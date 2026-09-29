@@ -1,9 +1,11 @@
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { ConsignmentItem } from '../types/consignment';
 import { calculateListingEstimates, formatRupiah } from '../utils/formatters';
 import {
   generateInstagramFeedCaption,
   generateInstagramStoryCaption,
 } from '../utils/captionGenerator';
+import { db, handleFirestoreError, OperationType } from './firebaseService';
 
 export interface InstagramAutoPostConfig {
   enabledOnNewSubmission: boolean;
@@ -14,6 +16,8 @@ export interface InstagramAutoPostConfig {
 }
 
 const IG_CONFIG_STORAGE_KEY = 'barkas_ig_autopost_config_v1';
+const SETTINGS_COLLECTION = 'settings';
+const IG_SETTINGS_DOC_ID = 'instagram_autopost';
 
 export const getInstagramAutoPostConfig = (): InstagramAutoPostConfig => {
   try {
@@ -33,13 +37,95 @@ export const getInstagramAutoPostConfig = (): InstagramAutoPostConfig => {
   };
 };
 
-export const saveInstagramAutoPostConfig = (config: InstagramAutoPostConfig): void => {
+export const saveInstagramAutoPostConfig = async (
+  config: InstagramAutoPostConfig
+): Promise<void> => {
+  const cleanConfig: InstagramAutoPostConfig = {
+    enabledOnNewSubmission: Boolean(config.enabledOnNewSubmission),
+    enabledOnAdminLive: Boolean(config.enabledOnAdminLive),
+    webhookUrl: (config.webhookUrl || '').trim().slice(0, 500),
+    igBusinessAccountId: (config.igBusinessAccountId || '').trim().slice(0, 120),
+    metaAccessToken: (config.metaAccessToken || '').trim().slice(0, 600),
+  };
+
   try {
-    localStorage.setItem(IG_CONFIG_STORAGE_KEY, JSON.stringify(config));
+    localStorage.setItem(IG_CONFIG_STORAGE_KEY, JSON.stringify(cleanConfig));
   } catch {
     // ignore
   }
+
+  const path = `${SETTINGS_COLLECTION}/${IG_SETTINGS_DOC_ID}`;
+  try {
+    await setDoc(
+      doc(db, SETTINGS_COLLECTION, IG_SETTINGS_DOC_ID),
+      {
+        ...cleanConfig,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
 };
+
+/**
+ * Synchronizes Instagram Auto-Post Webhook configuration with Firebase Firestore
+ * so all devices (/admin on phone, tablet, PC, and public consignment form) share the same Webhook URL.
+ */
+export const syncInstagramAutoPostConfigWithCloud =
+  async (): Promise<InstagramAutoPostConfig> => {
+    const localConfig = getInstagramAutoPostConfig();
+    const path = `${SETTINGS_COLLECTION}/${IG_SETTINGS_DOC_ID}`;
+
+    try {
+      const snap = await getDoc(doc(db, SETTINGS_COLLECTION, IG_SETTINGS_DOC_ID));
+      if (snap.exists()) {
+        const data = snap.data() as Partial<InstagramAutoPostConfig>;
+        const cloudConfig: InstagramAutoPostConfig = {
+          enabledOnNewSubmission:
+            typeof data.enabledOnNewSubmission === 'boolean'
+              ? data.enabledOnNewSubmission
+              : localConfig.enabledOnNewSubmission,
+          enabledOnAdminLive:
+            typeof data.enabledOnAdminLive === 'boolean'
+              ? data.enabledOnAdminLive
+              : localConfig.enabledOnAdminLive,
+          webhookUrl: (data.webhookUrl || localConfig.webhookUrl || '').trim(),
+          igBusinessAccountId: (
+            data.igBusinessAccountId ||
+            localConfig.igBusinessAccountId ||
+            ''
+          ).trim(),
+          metaAccessToken: (
+            data.metaAccessToken ||
+            localConfig.metaAccessToken ||
+            ''
+          ).trim(),
+        };
+
+        // If local device has a webhookUrl that wasn't in cloud yet, push it to cloud
+        if (!data.webhookUrl && localConfig.webhookUrl.trim()) {
+          await saveInstagramAutoPostConfig(cloudConfig);
+        } else {
+          try {
+            localStorage.setItem(IG_CONFIG_STORAGE_KEY, JSON.stringify(cloudConfig));
+          } catch {
+            // ignore
+          }
+        }
+        return cloudConfig;
+      } else if (localConfig.webhookUrl.trim() || localConfig.igBusinessAccountId.trim()) {
+        // First time migration: push existing local config to Firestore Cloud automatically!
+        await saveInstagramAutoPostConfig(localConfig);
+        return localConfig;
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.GET, path);
+    }
+
+    return localConfig;
+  };
 
 export interface InstagramPublishResult {
   success: boolean;
@@ -500,7 +586,10 @@ export const triggerInstagramAutoPublish = async (
   triggerSource: 'new_submission' | 'admin_live' | 'manual_button',
   customStoryDataUrl?: string
 ): Promise<InstagramPublishResult> => {
-  const config = getInstagramAutoPostConfig();
+  let config = getInstagramAutoPostConfig();
+  if (!config.webhookUrl.trim() && !config.igBusinessAccountId.trim()) {
+    config = await syncInstagramAutoPostConfigWithCloud();
+  }
 
   if (triggerSource === 'new_submission' && !config.enabledOnNewSubmission) {
     return {
