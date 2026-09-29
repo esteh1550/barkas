@@ -38,6 +38,7 @@ import {
   SubmissionStatus,
   AdminPostStatus,
   WantedRequest,
+  WantedRequestStatus,
   ADMIN_CONTACT
 } from './types/consignment';
 import { formatRupiah, parseRupiahInput, calculateListingEstimates, getTenorTimeline } from './utils/formatters';
@@ -64,6 +65,8 @@ import {
   updateSubmissionAdminNotesInFirebase,
   deleteSubmissionFromFirebase,
   saveWantedRequestToFirebase,
+  updateWantedRequestStatusInFirebase,
+  deleteWantedRequestFromFirebase,
   subscribeToWantedRequests,
   testFirestoreConnection,
 } from './services/firebaseService';
@@ -187,7 +190,12 @@ export default function App() {
   const [wantedRequests, setWantedRequests] = useState<WantedRequest[]>(() => {
     try {
       const saved = localStorage.getItem(WANTED_STORAGE_KEY);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
     } catch {
       // ignore
     }
@@ -218,6 +226,7 @@ export default function App() {
       },
     ];
   });
+  const [adminWantedRequests, setAdminWantedRequests] = useState<WantedRequest[]>([]);
 
   // Google Workspace / Forms Auth State
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -395,6 +404,7 @@ export default function App() {
     // Subscribe to public Wanted Board requests with privacy masking on phone number
     const unsubscribeWanted = subscribeToWantedRequests((cloudRequests) => {
       if (cloudRequests.length > 0) {
+        setAdminWantedRequests(cloudRequests);
         const masked = cloudRequests.map((r) => ({ ...r, whatsappNumber: '' }));
         setWantedRequests(masked);
         try {
@@ -790,6 +800,39 @@ export default function App() {
             console.warn('Failed to save sample item to Firestore:', err)
           );
         }}
+        wantedRequests={adminWantedRequests.length > 0 ? adminWantedRequests : wantedRequests}
+        onUpdateWantedStatus={(reqId: string, newStatus: WantedRequestStatus) => {
+          setAdminWantedRequests((prev) =>
+            prev.map((r) => (r.id === reqId ? { ...r, status: newStatus } : r))
+          );
+          setWantedRequests((prev) => {
+            const updated = prev.map((r) => (r.id === reqId ? { ...r, status: newStatus } : r));
+            try {
+              localStorage.setItem(WANTED_STORAGE_KEY, JSON.stringify(updated));
+            } catch {
+              // ignore
+            }
+            return updated;
+          });
+          updateWantedRequestStatusInFirebase(reqId, newStatus).catch((err) =>
+            console.warn('Failed to update wanted request status in Firestore:', err)
+          );
+        }}
+        onDeleteWantedRequest={(reqId: string) => {
+          setAdminWantedRequests((prev) => prev.filter((r) => r.id !== reqId));
+          setWantedRequests((prev) => {
+            const updated = prev.filter((r) => r.id !== reqId);
+            try {
+              localStorage.setItem(WANTED_STORAGE_KEY, JSON.stringify(updated));
+            } catch {
+              // ignore
+            }
+            return updated;
+          });
+          deleteWantedRequestFromFirebase(reqId).catch((err) =>
+            console.warn('Failed to delete wanted request from Firestore:', err)
+          );
+        }}
         adminWhatsAppNumber={adminPhone}
         onUpdateAdminWhatsApp={(newPhone) => {
           setAdminPhone(newPhone);
@@ -816,6 +859,10 @@ export default function App() {
       {/* Header - Privacy Clean */}
       <Header
         onOpenFAQ={() => setIsFAQOpen(true)}
+        activeTab={publicActiveTab}
+        onSelectTab={(tab) => setPublicActiveTab(tab)}
+        liveCount={effectiveLiveCatalogItems.length}
+        wantedCount={wantedRequests.length}
       />
 
       {/* Main Content Area */}
@@ -1038,12 +1085,14 @@ export default function App() {
             adminWhatsAppNumber={adminPhone}
             initialSelectedTicketId={initialCatalogTicketId}
             onSwitchToForm={() => setPublicActiveTab('form')}
+            onSwitchToWanted={() => setPublicActiveTab('wanted')}
           />
         ) : publicActiveTab === 'wanted' ? (
           <WantedBoardSection
             requests={wantedRequests}
             adminWhatsAppNumber={adminPhone}
             onAddRequest={async (newReq) => {
+              setAdminWantedRequests((prev) => [newReq, ...prev]);
               const maskedNewReq = { ...newReq, whatsappNumber: '' };
               setWantedRequests((prev) => {
                 const updated = [maskedNewReq, ...prev];
@@ -1608,6 +1657,45 @@ export default function App() {
           </div>
         </form>
           </>
+        )}
+
+        {/* Always-Visible Titip Cari Barang Section when user is on Form or Catalog tab */}
+        {publicActiveTab !== 'wanted' && (
+          <div id="titip-cari-section" className="mt-10 pt-8 border-t-2 border-slate-200/80">
+            <WantedBoardSection
+              requests={wantedRequests}
+              adminWhatsAppNumber={adminPhone}
+              onAddRequest={async (newReq) => {
+                setAdminWantedRequests((prev) => [newReq, ...prev]);
+                const maskedNewReq = { ...newReq, whatsappNumber: '' };
+                setWantedRequests((prev) => {
+                  const updated = [maskedNewReq, ...prev];
+                  try {
+                    localStorage.setItem(WANTED_STORAGE_KEY, JSON.stringify(updated));
+                  } catch {
+                    // ignore
+                  }
+                  return updated;
+                });
+                try {
+                  await saveWantedRequestToFirebase(newReq);
+                } catch {
+                  // ignore offline error, saved locally
+                }
+                showAppToast('✅ Permintaan cari barang Anda berhasil ditayangkan di Papan Wanted!');
+              }}
+              onFulfillViaForm={(prefill) => {
+                setCategory(prefill.category);
+                setItemNameAndBrand(prefill.itemNameAndBrand);
+                setNettPriceRaw(String(prefill.suggestedNettPrice));
+                setPublicActiveTab('form');
+                showAppToast(
+                  `✅ Formulir telah diisi otomatis untuk "${prefill.itemNameAndBrand}". Silakan lengkapi foto & data diri Anda!`
+                );
+                window.scrollTo({ top: 320, behavior: 'smooth' });
+              }}
+            />
+          </div>
         )}
       </main>
 

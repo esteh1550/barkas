@@ -30,6 +30,7 @@ interface LiveCatalogSectionProps {
   adminWhatsAppNumber?: string;
   initialSelectedTicketId?: string | null;
   onSwitchToForm?: () => void;
+  onSwitchToWanted?: () => void;
 }
 
 const CATEGORIES: ('Semua' | 'Wishlist' | ItemCategory)[] = [
@@ -62,6 +63,7 @@ export const LiveCatalogSection: React.FC<LiveCatalogSectionProps> = ({
   adminWhatsAppNumber = ADMIN_CONTACT.whatsappInternational,
   initialSelectedTicketId,
   onSwitchToForm,
+  onSwitchToWanted,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<'Semua' | 'Wishlist' | ItemCategory>('Semua');
   const [onlyPriceDrop, setOnlyPriceDrop] = useState(false);
@@ -285,7 +287,7 @@ export const LiveCatalogSection: React.FC<LiveCatalogSectionProps> = ({
 
           {/* Sort & Promo Filter Row */}
           <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <button
                 type="button"
                 onClick={() => setOnlyPriceDrop((prev) => !prev)}
@@ -297,6 +299,16 @@ export const LiveCatalogSection: React.FC<LiveCatalogSectionProps> = ({
               >
                 Promo Turun Harga ({priceDropCount})
               </button>
+
+              {onSwitchToWanted && (
+                <button
+                  type="button"
+                  onClick={onSwitchToWanted}
+                  className="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-stone-950 text-xs font-extrabold cursor-pointer whitespace-nowrap"
+                >
+                  + Titip Cari Barang Incaran
+                </button>
+              )}
 
               {compareIds.length > 0 && (
                 <button
@@ -359,15 +371,26 @@ export const LiveCatalogSection: React.FC<LiveCatalogSectionProps> = ({
                 : 'Coba gunakan kata kunci pencarian lain atau pilih kategori "Semua".'}
             </p>
           </div>
-          {onSwitchToForm && (
-            <button
-              type="button"
-              onClick={onSwitchToForm}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#1B365D] text-white text-xs font-bold hover:bg-[#24477A] transition-colors cursor-pointer"
-            >
-              <span>Titip Jual Barang Anda Sekarang</span>
-            </button>
-          )}
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            {onSwitchToWanted && (
+              <button
+                type="button"
+                onClick={onSwitchToWanted}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-400 text-stone-950 text-xs font-extrabold hover:bg-amber-300 transition-colors cursor-pointer"
+              >
+                <span>Pasang di Papan Titip Cari Barang</span>
+              </button>
+            )}
+            {onSwitchToForm && (
+              <button
+                type="button"
+                onClick={onSwitchToForm}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#1B365D] text-white text-xs font-bold hover:bg-[#24477A] transition-colors cursor-pointer"
+              >
+                <span>Titip Jual Barang Anda Sekarang</span>
+              </button>
+            )}
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

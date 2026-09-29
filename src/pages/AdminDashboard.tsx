@@ -33,7 +33,7 @@ import {
   BarChart3,
   TrendingDown
 } from 'lucide-react';
-import { ConsignmentItem, SubmissionStatus, AdminPostStatus, ADMIN_CONTACT } from '../types/consignment';
+import { ConsignmentItem, SubmissionStatus, AdminPostStatus, WantedRequest, WantedRequestStatus, ADMIN_CONTACT } from '../types/consignment';
 import { 
   formatRupiah, 
   generateAdminWhatsAppUrl, 
@@ -74,6 +74,9 @@ interface AdminDashboardProps {
   ) => Promise<void>;
   onDeleteSubmission: (id: string) => void;
   onAddSampleItem?: (sampleItem: ConsignmentItem) => void;
+  wantedRequests?: WantedRequest[];
+  onUpdateWantedStatus?: (reqId: string, newStatus: WantedRequestStatus) => void;
+  onDeleteWantedRequest?: (reqId: string) => void;
   adminWhatsAppNumber: string;
   onUpdateAdminWhatsApp: (newPhone: string) => void;
   onBackToHome: () => void;
@@ -96,6 +99,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onUpdateAdminNotes,
   onDeleteSubmission,
   onAddSampleItem,
+  wantedRequests = [],
+  onUpdateWantedStatus,
+  onDeleteWantedRequest,
   adminWhatsAppNumber,
   onUpdateAdminWhatsApp,
   onBackToHome,
@@ -1297,6 +1303,116 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               info.barkasmajalengka © {new Date().getFullYear()} • Panel Rahasia Pengelola
             </span>
           </div>
+        </div>
+
+        {/* Wanted Board (Papan Titip Cari Barang) Admin Management Card */}
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden p-5 sm:p-6 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+            <div>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-600 block">
+                Permintaan Pembeli · Kabupaten Majalengka
+              </span>
+              <h3 className="text-base sm:text-lg font-extrabold text-[#1B365D]">
+                Kelola Papan Titip Cari Barang ({wantedRequests.length} Request)
+              </h3>
+              <p className="text-xs text-slate-500">
+                Pantau daftar barang yang sedang dicari warga Majalengka. Nomor WhatsApp pencari hanya terlihat oleh Admin di halaman ini.
+              </p>
+            </div>
+          </div>
+
+          {wantedRequests.length === 0 ? (
+            <div className="p-6 text-center bg-slate-50 rounded-2xl border border-slate-200 text-xs text-slate-500">
+              Belum ada permintaan di Papan Titip Cari Barang.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {wantedRequests.map((req) => {
+                const isDone = req.status === 'Sudah Dapat';
+                const cleanReqWa = req.whatsappNumber ? normalizeWhatsAppNumber(req.whatsappNumber) : '';
+                return (
+                  <div
+                    key={req.id}
+                    className="p-4 rounded-2xl border border-slate-200 bg-slate-50/70 flex flex-col justify-between gap-3"
+                  >
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2 text-xs">
+                        <span className="font-mono font-bold text-[#1B365D]">
+                          {req.id} · {req.category}
+                        </span>
+                        <span
+                          className={`font-bold ${
+                            isDone ? 'text-emerald-700' : 'text-amber-700'
+                          }`}
+                        >
+                          {isDone ? '✓ Sudah Dapat' : '● Masih Dicari'}
+                        </span>
+                      </div>
+                      <h4 className="font-extrabold text-slate-900 text-sm">
+                        Dicari: {req.itemWanted}
+                      </h4>
+                      <p className="text-xs text-slate-600">{req.notes}</p>
+                      <div className="text-[11px] text-slate-500 pt-1 flex flex-wrap items-center justify-between gap-2">
+                        <span>
+                          Pencari: <strong className="text-slate-800">{req.requesterName}</strong> (Kec. {req.kecamatan})
+                        </span>
+                        <strong className="font-mono text-[#1B365D]">
+                          Budget: s.d. {formatRupiah(req.maxBudget)}
+                        </strong>
+                      </div>
+                    </div>
+
+                    <div className="pt-2.5 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        {onUpdateWantedStatus && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onUpdateWantedStatus(
+                                req.id,
+                                isDone ? 'Masih Dicari' : 'Sudah Dapat'
+                              )
+                            }
+                            className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold cursor-pointer transition-colors ${
+                              isDone
+                                ? 'bg-amber-100 text-amber-900 hover:bg-amber-200'
+                                : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                            }`}
+                          >
+                            {isDone ? 'Buka Kembali' : 'Tandai Sudah Dapat'}
+                          </button>
+                        )}
+                        {cleanReqWa && (
+                          <a
+                            href={`https://wa.me/${cleanReqWa}?text=${encodeURIComponent(
+                              `Halo Kak ${req.requesterName}, Admin Esteh dari info.barkasmajalengka menginfokan bahwa barang yang Kakak cari (${req.itemWanted}) baru saja masuk stok kami!`
+                            )}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-2.5 py-1.5 rounded-xl bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-[11px] font-bold inline-flex items-center gap-1"
+                          >
+                            <MessageCircle className="w-3 h-3 text-emerald-600" />
+                            <span>WA Pencari</span>
+                          </a>
+                        )}
+                      </div>
+
+                      {onDeleteWantedRequest && (
+                        <button
+                          type="button"
+                          onClick={() => onDeleteWantedRequest(req.id)}
+                          className="p-1.5 rounded-xl text-rose-600 hover:bg-rose-50 cursor-pointer"
+                          title="Hapus Request"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </main>
 

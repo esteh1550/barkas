@@ -3,6 +3,9 @@ import {
   HelpCircle,
   MessageCircle,
   Palette,
+  Tag,
+  ShoppingBag,
+  Search,
 } from 'lucide-react';
 import { ADMIN_CONTACT } from '../types/consignment';
 import { PWAInstallButton } from './PWAInstallButton';
@@ -20,9 +23,19 @@ const THEME_STORAGE_KEY = 'barkas_ui_theme_v1';
 
 interface HeaderProps {
   onOpenFAQ: () => void;
+  activeTab?: 'form' | 'catalog' | 'wanted';
+  onSelectTab?: (tab: 'form' | 'catalog' | 'wanted') => void;
+  liveCount?: number;
+  wantedCount?: number;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onOpenFAQ }) => {
+export const Header: React.FC<HeaderProps> = ({
+  onOpenFAQ,
+  activeTab,
+  onSelectTab,
+  liveCount = 0,
+  wantedCount = 0,
+}) => {
   const [activeTheme, setActiveTheme] = useState<UIThemeId>(() => {
     try {
       const saved = localStorage.getItem(THEME_STORAGE_KEY) as UIThemeId | null;
@@ -151,6 +164,53 @@ export const Header: React.FC<HeaderProps> = ({ onOpenFAQ }) => {
             </div>
           </div>
         </div>
+
+        {/* Quick Mode Navigation Bar inside Masthead */}
+        {onSelectTab && (
+          <div className="mt-5 pt-4 border-t border-white/15 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onSelectTab('form')}
+              className={`px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeTab === 'form'
+                  ? 'bg-amber-400 text-stone-950 shadow-sm'
+                  : 'bg-white/10 text-white hover:bg-white/20 border border-white/15'
+              }`}
+            >
+              <Tag className="w-3.5 h-3.5" />
+              <span>Formulir Titip Jual</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onSelectTab('catalog')}
+              className={`px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeTab === 'catalog'
+                  ? 'bg-amber-400 text-stone-950 shadow-sm'
+                  : 'bg-white/10 text-white hover:bg-white/20 border border-white/15'
+              }`}
+            >
+              <ShoppingBag className="w-3.5 h-3.5" />
+              <span>Etalase Barang Live ({liveCount})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onSelectTab('wanted')}
+              className={`px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeTab === 'wanted'
+                  ? 'bg-amber-400 text-stone-950 shadow-sm'
+                  : 'bg-white/10 text-white hover:bg-white/20 border border-amber-400/40'
+              }`}
+            >
+              <Search className="w-3.5 h-3.5 text-amber-300" />
+              <span>Titip Cari Barang ({wantedCount})</span>
+              <span className="px-1.5 py-0.2 rounded-md bg-amber-300 text-stone-950 text-[10px] font-black">
+                WANTED
+              </span>
+            </button>
+          </div>
+        )}
       </div>
     </header>
   );
