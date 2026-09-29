@@ -53,6 +53,7 @@ import { OfflineIndicator } from './components/OfflineIndicator';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { initAuth } from './services/googleAuth';
 import { createConsignmentGoogleForm } from './services/googleForms';
+import { triggerInstagramAutoPublish } from './services/instagramAutomation';
 import {
   saveSubmissionToFirebase,
   subscribeToSubmissions,
@@ -73,6 +74,7 @@ import {
 
 const STORAGE_KEY = 'barkas_majalengka_submissions';
 const WANTED_STORAGE_KEY = 'barkas_majalengka_wanted_requests';
+const WANTED_DELETED_IDS_KEY = 'barkas_wanted_deleted_ids';
 const FORM_DRAFT_KEY = 'barkas_consignment_form_draft';
 const ADMIN_PHONE_KEY = 'barkas_admin_whatsapp';
 const DEFAULT_ADMIN_PHONE = ADMIN_CONTACT.whatsappInternational;
@@ -188,18 +190,26 @@ export default function App() {
   const [liveCatalogItems, setLiveCatalogItems] = useState<ConsignmentItem[]>([]);
   const [soldCatalogItems, setSoldCatalogItems] = useState<ConsignmentItem[]>([]);
   const [wantedRequests, setWantedRequests] = useState<WantedRequest[]>(() => {
+    let deletedIds: string[] = [];
+    try {
+      const savedDeleted = localStorage.getItem(WANTED_DELETED_IDS_KEY);
+      if (savedDeleted) deletedIds = JSON.parse(savedDeleted);
+    } catch {
+      // ignore
+    }
+
     try {
       const saved = localStorage.getItem(WANTED_STORAGE_KEY);
-      if (saved) {
+      if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+        if (Array.isArray(parsed)) {
+          return parsed.filter((r: WantedRequest) => !deletedIds.includes(r.id));
         }
       }
     } catch {
       // ignore
     }
-    return [
+    const defaults: WantedRequest[] = [
       {
         id: '#REQ-2026-8102',
         createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
@@ -225,6 +235,7 @@ export default function App() {
         status: 'Masih Dicari',
       },
     ];
+    return defaults.filter((r) => !deletedIds.includes(r.id));
   });
   const [adminWantedRequests, setAdminWantedRequests] = useState<WantedRequest[]>([]);
 
@@ -403,9 +414,17 @@ export default function App() {
 
     // Subscribe to public Wanted Board requests with privacy masking on phone number
     const unsubscribeWanted = subscribeToWantedRequests((cloudRequests) => {
-      if (cloudRequests.length > 0) {
-        setAdminWantedRequests(cloudRequests);
-        const masked = cloudRequests.map((r) => ({ ...r, whatsappNumber: '' }));
+      let deletedIds: string[] = [];
+      try {
+        const savedDeleted = localStorage.getItem(WANTED_DELETED_IDS_KEY);
+        if (savedDeleted) deletedIds = JSON.parse(savedDeleted);
+      } catch {
+        // ignore
+      }
+      const filteredCloud = cloudRequests.filter((r) => !deletedIds.includes(r.id));
+      if (filteredCloud.length > 0) {
+        setAdminWantedRequests(filteredCloud);
+        const masked = filteredCloud.map((r) => ({ ...r, whatsappNumber: '' }));
         setWantedRequests(masked);
         try {
           localStorage.setItem(WANTED_STORAGE_KEY, JSON.stringify(masked));
@@ -615,6 +634,11 @@ export default function App() {
         console.warn('Firestore sync warning (data remains saved in localStorage):', firebaseErr);
       }
 
+      // Trigger Instagram Auto-Post if enabled on new submission
+      triggerInstagramAutoPublish(newItem, 'new_submission').catch(() => {
+        // ignore background webhook errors on public submission
+      });
+
       setSubmittedItem(newItem);
       setIsSuccessModalOpen(true);
 
@@ -819,6 +843,15 @@ export default function App() {
           );
         }}
         onDeleteWantedRequest={(reqId: string) => {
+          try {
+            const savedDeleted = localStorage.getItem(WANTED_DELETED_IDS_KEY);
+            const deletedIds: string[] = savedDeleted ? JSON.parse(savedDeleted) : [];
+            if (!deletedIds.includes(reqId)) {
+              localStorage.setItem(WANTED_DELETED_IDS_KEY, JSON.stringify([...deletedIds, reqId]));
+            }
+          } catch {
+            // ignore
+          }
           setAdminWantedRequests((prev) => prev.filter((r) => r.id !== reqId));
           setWantedRequests((prev) => {
             const updated = prev.filter((r) => r.id !== reqId);

@@ -45,6 +45,7 @@ interface ContentOutputCardProps {
   onOpenPayoutReceipt?: (item: ConsignmentItem) => void;
   onOpenBuyerInvoice?: (item: ConsignmentItem) => void;
   onOpenEditPrice?: (item: ConsignmentItem) => void;
+  onTriggerIgAutoPost?: (item: ConsignmentItem, mode: 'admin_live' | 'manual_button') => void;
 }
 
 const POST_STATUSES: { value: AdminPostStatus; label: string; badge: string; border: string }[] = [
@@ -66,6 +67,7 @@ export const ContentOutputCard: React.FC<ContentOutputCardProps> = ({
   onOpenPayoutReceipt,
   onOpenBuyerInvoice,
   onOpenEditPrice,
+  onTriggerIgAutoPost,
 }) => {
   const [captionTab, setCaptionTab] = useState<'feed' | 'story'>('feed');
   const [isCopied, setIsCopied] = useState(false);
@@ -183,7 +185,12 @@ export const ContentOutputCard: React.FC<ContentOutputCardProps> = ({
                   type="button"
                   onClick={() => {
                     onUpdatePostStatus(item.id, statusObj.value);
-                    if (statusObj.value === 'Posted') onUpdateGeneralStatus(item.id, 'Sedang Dipajang (Live)');
+                    if (statusObj.value === 'Posted') {
+                      onUpdateGeneralStatus(item.id, 'Sedang Dipajang (Live)');
+                      if (onTriggerIgAutoPost) {
+                        onTriggerIgAutoPost(item, 'admin_live');
+                      }
+                    }
                     if (statusObj.value === 'Booked') onUpdateGeneralStatus(item.id, 'Booked (Di-DP)');
                     if (statusObj.value === 'Sold Out') onUpdateGeneralStatus(item.id, 'Terjual');
                     if (statusObj.value === 'Ready to Post') onUpdateGeneralStatus(item.id, 'Diterima');
@@ -266,6 +273,7 @@ export const ContentOutputCard: React.FC<ContentOutputCardProps> = ({
               item.status === 'Selesai & Dicairkan' ||
               currentPostStatus === 'Sold Out'
             }
+            captionText={activeCaption}
           />
 
           {/* Pricing Summary Box */}
@@ -480,19 +488,31 @@ export const ContentOutputCard: React.FC<ContentOutputCardProps> = ({
 
           {/* Action Row: WA to Penitip & Document Tools */}
           <div className="space-y-3 pt-2">
-            {/* Primary Action: Kirim Konfirmasi WA ke Penitip (Requested Feature) */}
-            <a
-              href={confirmationWaUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-bold text-xs sm:text-sm rounded-2xl shadow-md transition-all group"
-            >
-              <MessageCircle className="w-4 h-4 fill-white/20 text-white shrink-0 group-hover:scale-110 transition-transform" />
-              <span>Kirim Konfirmasi WA ke Penitip</span>
-              <span className="text-[11px] font-normal text-emerald-100 hidden sm:inline">
-                (Kabar Barang Siap Diposting)
-              </span>
-            </a>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {/* Primary Action: Kirim Konfirmasi WA ke Penitip */}
+              <a
+                href={confirmationWaUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-bold text-xs sm:text-sm rounded-2xl shadow-md transition-all group"
+              >
+                <MessageCircle className="w-4 h-4 fill-white/20 text-white shrink-0 group-hover:scale-110 transition-transform" />
+                <span>Kirim WA ke Penitip</span>
+              </a>
+
+              {/* Auto-Upload to Instagram Feed & Story Button */}
+              {onTriggerIgAutoPost && (
+                <button
+                  type="button"
+                  onClick={() => onTriggerIgAutoPost(item, 'manual_button')}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#1B365D] hover:bg-[#24477A] active:scale-[0.99] text-white font-bold text-xs sm:text-sm rounded-2xl shadow-md transition-all cursor-pointer"
+                  title="Upload Otomatis Foto & Caption ke Instagram Feed dan Story"
+                >
+                  <Instagram className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>Auto-Upload IG Feed & Story</span>
+                </button>
+              )}
+            </div>
 
             {/* Quick Utility Tools */}
             <div className="flex items-center justify-between gap-2 pt-1">

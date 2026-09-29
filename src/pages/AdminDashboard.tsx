@@ -57,6 +57,9 @@ import { DailyStockBroadcastModal } from '../components/DailyStockBroadcastModal
 import { BuyerInvoiceModal } from '../components/BuyerInvoiceModal';
 import { AdminQuickScannerModal } from '../components/AdminQuickScannerModal';
 import { AdminQRVerifyDetailModal } from '../components/AdminQRVerifyDetailModal';
+import { WantedStoryModal } from '../components/WantedStoryModal';
+import { InstagramAutoPostModal } from '../components/InstagramAutoPostModal';
+import { triggerInstagramAutoPublish } from '../services/instagramAutomation';
 
 interface AdminDashboardProps {
   submissions: ConsignmentItem[];
@@ -147,6 +150,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [generatingPdfId, setGeneratingPdfId] = useState<string | null>(null);
   const [copiedAll, setCopiedAll] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<ConsignmentItem | null>(null);
+  const [wantedToDelete, setWantedToDelete] = useState<WantedRequest | null>(null);
+  const [wantedStoryRequest, setWantedStoryRequest] = useState<WantedRequest | null>(null);
+  const [isWantedStoryModalOpen, setIsWantedStoryModalOpen] = useState(false);
+  const [isIgAutoPostModalOpen, setIsIgAutoPostModalOpen] = useState(false);
   const [deleteNotification, setDeleteNotification] = useState<string | null>(null);
   const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
 
@@ -592,6 +599,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <span>Broadcast Stok</span>
             </button>
 
+            {/* IG Story Titip Cari Button */}
+            <button
+              type="button"
+              onClick={() => {
+                setWantedStoryRequest(null);
+                setIsWantedStoryModalOpen(true);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-400/20 hover:bg-amber-400/30 text-amber-200 border border-amber-400/40 font-extrabold text-xs shadow-xs transition-all cursor-pointer"
+              title="Buat Poster Instagram Story dari Daftar Titip Cari Barang"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <span>IG Story Titip Cari ({wantedRequests.length})</span>
+            </button>
+
+            {/* Auto-Post IG Feed & Story Settings Button */}
+            <button
+              type="button"
+              onClick={() => setIsIgAutoPostModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white border border-white/25 font-extrabold text-xs shadow-xs transition-all cursor-pointer"
+              title="Atur Auto-Upload Otomatis ke Instagram Feed & Story"
+            >
+              <span>Auto-Post IG</span>
+            </button>
+
             {/* Quick Lookup & QR Scanner Button */}
             <button
               type="button"
@@ -891,6 +922,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 {countSold}
               </span>
             </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                const el = document.getElementById('admin-wanted-board-section');
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }}
+              className="px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all shrink-0 cursor-pointer flex items-center gap-1.5 bg-amber-400 text-stone-950 hover:bg-amber-300 shadow-xs ml-auto"
+            >
+              <Search className="w-3.5 h-3.5" />
+              <span>Titip Cari ({wantedRequests.length})</span>
+            </button>
           </div>
 
           {/* Search & Sub-Filter Bar */}
@@ -1045,6 +1088,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     onOpenPayoutReceipt={(item) => setPayoutModalItem(item)}
                     onOpenBuyerInvoice={(item) => setBuyerInvoiceItem(item)}
                     onOpenEditPrice={(item) => setEditPriceItem(item)}
+                    onTriggerIgAutoPost={async (targetItem, mode) => {
+                      const res = await triggerInstagramAutoPublish(targetItem, mode);
+                      if (res.method === 'none' && mode === 'manual_button') {
+                        setIsIgAutoPostModalOpen(true);
+                        showToast(res.message);
+                      } else if (res.method !== 'none') {
+                        showToast(res.message);
+                      }
+                    }}
                   />
                 ))}
               </div>
@@ -1306,8 +1358,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </div>
 
         {/* Wanted Board (Papan Titip Cari Barang) Admin Management Card */}
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden p-5 sm:p-6 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+        <div
+          id="admin-wanted-board-section"
+          className="bg-white rounded-3xl border-2 border-[#1B365D]/20 shadow-xs overflow-hidden p-5 sm:p-6 space-y-4"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
             <div>
               <span className="text-[11px] font-bold uppercase tracking-wider text-amber-600 block">
                 Permintaan Pembeli · Kabupaten Majalengka
@@ -1316,9 +1371,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 Kelola Papan Titip Cari Barang ({wantedRequests.length} Request)
               </h3>
               <p className="text-xs text-slate-500">
-                Pantau daftar barang yang sedang dicari warga Majalengka. Nomor WhatsApp pencari hanya terlihat oleh Admin di halaman ini.
+                Buat poster Instagram Story dari barang yang dicari warga, ubah status, hubungi pencari, atau hapus request.
               </p>
             </div>
+
+            {wantedRequests.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setWantedStoryRequest(null);
+                  setIsWantedStoryModalOpen(true);
+                }}
+                className="px-4 py-2.5 rounded-xl bg-[#1B365D] hover:bg-[#24477A] text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-xs cursor-pointer shrink-0 transition-colors"
+              >
+                <Sparkles className="w-4 h-4 text-amber-400" />
+                <span>Buat IG Story Rekap Titip Cari</span>
+              </button>
+            )}
           </div>
 
           {wantedRequests.length === 0 ? (
@@ -1363,7 +1432,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
 
                     <div className="pt-2.5 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setWantedStoryRequest(req);
+                            setIsWantedStoryModalOpen(true);
+                          }}
+                          className="px-2.5 py-1.5 rounded-xl bg-[#1B365D] hover:bg-[#24477A] text-white text-[11px] font-extrabold inline-flex items-center gap-1 cursor-pointer transition-colors"
+                          title="Buat Poster Instagram Story 9:16 untuk Permintaan Ini"
+                        >
+                          <Sparkles className="w-3 h-3 text-amber-400" />
+                          <span>Buat IG Story</span>
+                        </button>
+
                         {onUpdateWantedStatus && (
                           <button
                             type="button"
@@ -1400,11 +1482,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       {onDeleteWantedRequest && (
                         <button
                           type="button"
-                          onClick={() => onDeleteWantedRequest(req.id)}
-                          className="p-1.5 rounded-xl text-rose-600 hover:bg-rose-50 cursor-pointer"
-                          title="Hapus Request"
+                          onClick={() => setWantedToDelete(req)}
+                          className="px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition-colors"
+                          title="Hapus Titip Cari Ini"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Hapus</span>
                         </button>
                       )}
                     </div>
@@ -1544,6 +1627,60 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         isOpen={isFinancialModalOpen}
         onClose={() => setIsFinancialModalOpen(false)}
         submissions={submissions}
+      />
+
+      {/* Wanted Request Delete Confirmation Modal */}
+      {wantedToDelete && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 text-center animate-in fade-in zoom-in-95 duration-150">
+            <div className="w-14 h-14 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-4">
+              <Trash2 className="w-7 h-7" />
+            </div>
+            <h3 className="text-lg font-extrabold text-slate-800">
+              Hapus Permintaan Titip Cari?
+            </h3>
+            <p className="text-xs text-slate-600 mt-2 leading-relaxed">
+              Anda akan menghapus request <strong>{wantedToDelete.id}</strong> (<strong>{wantedToDelete.itemWanted}</strong>) dari <strong>{wantedToDelete.requesterName}</strong>.
+            </p>
+            <div className="mt-5 flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => setWantedToDelete(null)}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 font-semibold text-xs cursor-pointer transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onDeleteWantedRequest) {
+                    onDeleteWantedRequest(wantedToDelete.id);
+                    showToast(`✅ Titip Cari ${wantedToDelete.id} (${wantedToDelete.itemWanted}) berhasil dihapus.`);
+                  }
+                  setWantedToDelete(null);
+                }}
+                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-bold text-xs shadow-lg shadow-rose-600/25 cursor-pointer transition-all"
+              >
+                Ya, Hapus Titip Cari
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Wanted IG Story Generator Modal */}
+      <WantedStoryModal
+        isOpen={isWantedStoryModalOpen}
+        onClose={() => setIsWantedStoryModalOpen(false)}
+        selectedRequest={wantedStoryRequest}
+        allRequests={wantedRequests}
+      />
+
+      {/* Instagram Auto-Post Configuration Modal */}
+      <InstagramAutoPostModal
+        isOpen={isIgAutoPostModalOpen}
+        onClose={() => setIsIgAutoPostModalOpen(false)}
+        onSaved={(msg) => showToast(msg)}
       />
 
       {/* Google Forms Modal */}

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Download, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Download, ChevronLeft, ChevronRight, Share2, Check } from 'lucide-react';
 import { formatRupiah } from '../utils/formatters';
 
 interface WatermarkedImagePreviewProps {
@@ -14,6 +14,7 @@ interface WatermarkedImagePreviewProps {
   originalListingPrice?: number;
   priceDropText?: string;
   isSoldStatus?: boolean;
+  captionText?: string;
 }
 
 export const WatermarkedImagePreview: React.FC<WatermarkedImagePreviewProps> = ({
@@ -28,6 +29,7 @@ export const WatermarkedImagePreview: React.FC<WatermarkedImagePreviewProps> = (
   originalListingPrice,
   priceDropText,
   isSoldStatus = false,
+  captionText = '',
 }) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [stampMode, setStampMode] = useState<'normal' | 'sold' | 'story_poster'>(
@@ -35,6 +37,7 @@ export const WatermarkedImagePreview: React.FC<WatermarkedImagePreviewProps> = (
   );
   const [watermarkedDataUrl, setWatermarkedDataUrl] = useState<string | null>(null);
   const [isRendering, setIsRendering] = useState(false);
+  const [shareToast, setShareToast] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
@@ -473,6 +476,43 @@ export const WatermarkedImagePreview: React.FC<WatermarkedImagePreviewProps> = (
     document.body.removeChild(link);
   };
 
+  const handleShareToInstagram = async () => {
+    if (!watermarkedDataUrl) return;
+    if (captionText) {
+      try {
+        await navigator.clipboard.writeText(captionText);
+        setShareToast(true);
+        setTimeout(() => setShareToast(false), 3000);
+      } catch {
+        // ignore
+      }
+    }
+
+    if (navigator.share) {
+      try {
+        const res = await fetch(watermarkedDataUrl);
+        const blob = await res.blob();
+        const cleanTicket = itemId.replace(/[^a-zA-Z0-9]/g, '');
+        const file = new File(
+          [blob],
+          `BarkasMJL_${cleanTicket}_${stampMode}.jpg`,
+          { type: 'image/jpeg' }
+        );
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            title: `${itemName} - info.barkasmajalengka`,
+            text: captionText || itemName,
+            files: [file],
+          });
+          return;
+        }
+      } catch {
+        // fallback to download
+      }
+    }
+    handleDownloadWatermarked();
+  };
+
   if (!photos || photos.length === 0) {
     return (
       <div className="aspect-square rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 text-xs">
@@ -617,6 +657,31 @@ export const WatermarkedImagePreview: React.FC<WatermarkedImagePreviewProps> = (
           </span>
         </button>
       </div>
+
+      {/* 1-Click Share to Instagram Feed / Story (Copies Caption + Opens Share Sheet) */}
+      <button
+        type="button"
+        onClick={handleShareToInstagram}
+        disabled={isRendering || !watermarkedDataUrl}
+        className="w-full py-2.5 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-stone-950 font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
+        title="Salin Caption Otomatis & Buka Share ke Instagram Feed / Story"
+      >
+        {shareToast ? (
+          <>
+            <Check className="w-4 h-4 text-emerald-800" />
+            <span>Caption Tersalin! Pilih Instagram Feed / Stories...</span>
+          </>
+        ) : (
+          <>
+            <Share2 className="w-3.5 h-3.5" />
+            <span>
+              {stampMode === 'story_poster'
+                ? '1-Klik Share Poster ke IG Story + Copy Caption'
+                : '1-Klik Share Foto ke IG Feed / Story + Copy Caption'}
+            </span>
+          </>
+        )}
+      </button>
     </div>
   );
 };
