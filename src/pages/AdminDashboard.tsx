@@ -31,7 +31,8 @@ import {
   Sparkles,
   PlusCircle,
   BarChart3,
-  TrendingDown
+  TrendingDown,
+  Instagram
 } from 'lucide-react';
 import { ConsignmentItem, SubmissionStatus, AdminPostStatus, WantedRequest, WantedRequestStatus, ADMIN_CONTACT } from '../types/consignment';
 import { 
@@ -629,14 +630,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <span>IG Story Titip Cari ({wantedRequests.length})</span>
             </button>
 
-            {/* Auto-Post IG Feed & Story Settings Button */}
+            {/* Auto-Post IG & Facebook Page Settings Button */}
             <button
               type="button"
               onClick={() => setIsIgAutoPostModalOpen(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white border border-white/25 font-extrabold text-xs shadow-xs transition-all cursor-pointer"
-              title="Atur Auto-Upload Otomatis ke Instagram Feed & Story"
+              title="Atur Auto-Upload Otomatis ke Instagram Feed/Story & Halaman Facebook (Page)"
             >
-              <span>Auto-Post IG</span>
+              <div className="flex items-center gap-1">
+                <Instagram className="w-3.5 h-3.5 text-pink-300" />
+                <span className="text-[10px] px-1 py-0.2 rounded bg-blue-600 text-white font-black">
+                  FB
+                </span>
+              </div>
+              <span>Auto-Post IG & FB Page</span>
             </button>
 
             {/* Quick Lookup & QR Scanner Button */}

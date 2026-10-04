@@ -22,6 +22,7 @@ import { formatRupiah, calculateListingEstimates, getTenorTimeline } from '../ut
 import { 
   generateInstagramFeedCaption, 
   generateInstagramStoryCaption, 
+  generateFacebookPageCaption,
   generatePenitipConfirmationWhatsAppUrl,
   generatePriceDropWhatsAppUrl
 } from '../utils/captionGenerator';
@@ -69,7 +70,7 @@ export const ContentOutputCard: React.FC<ContentOutputCardProps> = ({
   onOpenEditPrice,
   onTriggerIgAutoPost,
 }) => {
-  const [captionTab, setCaptionTab] = useState<'feed' | 'story'>('feed');
+  const [captionTab, setCaptionTab] = useState<'feed' | 'story' | 'facebook'>('feed');
   const [isCopied, setIsCopied] = useState(false);
   const [isCopiedLink, setIsCopiedLink] = useState(false);
   const [isUploadingIg, setIsUploadingIg] = useState(false);
@@ -98,7 +99,13 @@ export const ContentOutputCard: React.FC<ContentOutputCardProps> = ({
 
   const feedCaption = generateInstagramFeedCaption(item);
   const storyCaption = generateInstagramStoryCaption(item);
-  const activeCaption = captionTab === 'feed' ? feedCaption : storyCaption;
+  const facebookCaption = generateFacebookPageCaption(item);
+  const activeCaption =
+    captionTab === 'feed'
+      ? feedCaption
+      : captionTab === 'story'
+      ? storyCaption
+      : facebookCaption;
 
   const currentPostStatus = item.postStatus || (
     item.status === 'Terjual' || item.status === 'Selesai & Dicairkan'
@@ -416,37 +423,55 @@ export const ContentOutputCard: React.FC<ContentOutputCardProps> = ({
         <div className="lg:col-span-7 space-y-4 flex flex-col justify-between">
           <div>
             {/* Caption Header & Format Selector */}
-            <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-slate-200 gap-2">
               <div className="flex items-center gap-1.5">
                 <Instagram className="w-4 h-4 text-pink-600" />
                 <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                  Auto-Generate Caption
+                  Auto-Caption
+                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-bold">
+                  {captionTab === 'facebook'
+                    ? '📢 Halaman Facebook'
+                    : captionTab === 'story'
+                    ? '📱 IG / WA Story'
+                    : '📸 IG Feed'}
                 </span>
               </div>
 
-              {/* Feed vs Story Tab */}
-              <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
+              {/* Feed vs Story vs Facebook Page Tab */}
+              <div className="flex gap-1 bg-slate-100 p-1 rounded-xl flex-wrap">
                 <button
                   type="button"
                   onClick={() => setCaptionTab('feed')}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                     captionTab === 'feed'
                       ? 'bg-white text-[#1B365D] shadow-xs'
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
-                  Instagram Feed
+                  IG Feed
                 </button>
                 <button
                   type="button"
                   onClick={() => setCaptionTab('story')}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                     captionTab === 'story'
                       ? 'bg-white text-[#1B365D] shadow-xs'
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
                   Story Text
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCaptionTab('facebook')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                    captionTab === 'facebook'
+                      ? 'bg-[#1877F2] text-white shadow-xs'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <span>Facebook Page</span>
                 </button>
               </div>
             </div>
@@ -460,8 +485,23 @@ export const ContentOutputCard: React.FC<ContentOutputCardProps> = ({
                 className="w-full p-4 text-xs sm:text-sm font-sans rounded-2xl bg-slate-50 border border-slate-300 text-slate-800 leading-relaxed focus:outline-hidden resize-none selection:bg-amber-200"
               />
 
-              {/* Float Copy Button */}
-              <div className="absolute top-3 right-3">
+              {/* Float Action Buttons for Caption */}
+              <div className="absolute top-3 right-3 flex items-center gap-1.5">
+                {captionTab === 'facebook' && (
+                  <a
+                    href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(
+                      `${typeof window !== 'undefined' ? window.location.origin : ''}/?item=${encodeURIComponent(item.id.replace(/^#/, ''))}`
+                    )}&quote=${encodeURIComponent(facebookCaption.slice(0, 400))}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 px-2.5 py-2 rounded-xl text-xs font-extrabold bg-[#1877F2] hover:bg-[#166fe5] text-white shadow-md transition-all cursor-pointer"
+                    title="Buka Facebook untuk membagikan tautan etalase barang ini"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Buka Facebook</span>
+                  </a>
+                )}
+
                 <button
                   type="button"
                   onClick={handleCopyCaption}
@@ -474,12 +514,16 @@ export const ContentOutputCard: React.FC<ContentOutputCardProps> = ({
                   {isCopied ? (
                     <>
                       <Check className="w-4 h-4 text-white" />
-                      <span>✓ Teks Berhasil Disalin!</span>
+                      <span>
+                        {captionTab === 'facebook'
+                          ? '✓ Caption FB Disalin!'
+                          : '✓ Teks Berhasil Disalin!'}
+                      </span>
                     </>
                   ) : (
                     <>
                       <Copy className="w-4 h-4 text-amber-400" />
-                      <span>Copy Caption</span>
+                      <span>{captionTab === 'facebook' ? 'Copy Caption FB' : 'Copy Caption'}</span>
                     </>
                   )}
                 </button>
@@ -501,7 +545,7 @@ export const ContentOutputCard: React.FC<ContentOutputCardProps> = ({
                 <span>Kirim WA ke Penitip</span>
               </a>
 
-              {/* Auto-Upload to Instagram Feed & Story Button */}
+              {/* Auto-Upload to Instagram Feed & Facebook Page Button */}
               {onTriggerIgAutoPost && (
                 <button
                   type="button"
@@ -515,11 +559,18 @@ export const ContentOutputCard: React.FC<ContentOutputCardProps> = ({
                     }
                   }}
                   className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#1B365D] hover:bg-[#24477A] active:scale-[0.99] disabled:opacity-70 text-white font-bold text-xs sm:text-sm rounded-2xl shadow-md transition-all cursor-pointer"
-                  title="Upload Otomatis Foto & Caption ke Instagram Feed dan Story"
+                  title="Upload Otomatis Foto & Caption ke Instagram (Feed/Story) dan Halaman Facebook"
                 >
-                  <Instagram className="w-4 h-4 text-amber-400 shrink-0" />
+                  <div className="flex items-center gap-1 text-amber-400">
+                    <Instagram className="w-4 h-4 shrink-0" />
+                    <span className="font-black text-[11px] px-1 py-0.2 rounded bg-blue-600 text-white">
+                      FB
+                    </span>
+                  </div>
                   <span>
-                    {isUploadingIg ? 'Mengirim ke Instagram...' : 'Auto-Upload IG Feed & Story'}
+                    {isUploadingIg
+                      ? 'Mengirim ke IG & FB Page...'
+                      : 'Auto-Post IG & Facebook Page'}
                   </span>
                 </button>
               )}

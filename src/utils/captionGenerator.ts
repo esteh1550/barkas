@@ -96,6 +96,77 @@ export const generateInstagramStoryCaption = (item: ConsignmentItem): string => 
 };
 
 /**
+ * Generate rich engaging Facebook Page caption with direct links & full details
+ */
+export const generateFacebookPageCaption = (
+  item: ConsignmentItem,
+  catalogUrl?: string
+): string => {
+  const estimates = calculateListingEstimates(item.nettPrice);
+  const formattedPrice = new Intl.NumberFormat('id-ID').format(estimates.suggestedListingPrice);
+
+  const hasPriceDrop =
+    typeof item.previousNettPrice === 'number' && item.previousNettPrice > item.nettPrice;
+  const prevEstimates = hasPriceDrop
+    ? calculateListingEstimates(item.previousNettPrice!)
+    : null;
+  const formattedPrevPrice = prevEstimates
+    ? new Intl.NumberFormat('id-ID').format(prevEstimates.suggestedListingPrice)
+    : '';
+
+  const cleanTicket = item.id.replace(/^#/, '');
+  const finalCatalogUrl =
+    catalogUrl ||
+    (typeof window !== 'undefined' && window.location?.origin
+      ? `${window.location.origin}/?item=${encodeURIComponent(cleanTicket)}`
+      : `https://barkas-two.vercel.app/?item=${encodeURIComponent(cleanTicket)}`);
+
+  const waInquiryUrl = `https://wa.me/${ADMIN_CONTACT.whatsappInternational}?text=${encodeURIComponent(
+    `Halo Admin Esteh (*info.barkasmajalengka*), saya tertarik ingin beli/tanya barang di Facebook: ${item.itemNameAndBrand} (${item.id}). Apakah masih ready?`
+  )}`;
+
+  const minusText = item.descriptionAndFlaws.trim() || 'Tidak ada minus (kondisi mulus wajar)';
+
+  const titleHeader = hasPriceDrop
+    ? `🚨 PROMO TURUN HARGA (PRICE DROP)!\n📢 FOR SALE: ${item.itemNameAndBrand}`
+    : `📢 FOR SALE: ${item.itemNameAndBrand}`;
+
+  const priceSection = hasPriceDrop
+    ? `💰 Harga Promo: Rp ${formattedPrice} (Turun dari Rp ${formattedPrevPrice} 🔥)\n✅ Hemat & Siap Pakai!`
+    : `💰 Harga: Rp ${formattedPrice} (Nego Tipis)`;
+
+  return `${titleHeader}
+Kode Tiket: ${item.id}
+
+📋 SPESIFIKASI & DETAIL BARANG:
+• Kategori: ${item.category}
+• Merk / Tipe: ${item.itemNameAndBrand}
+• Ukuran / Size: ${item.size || 'All Size'}
+• Kondisi: ${item.condition}
+• Deskripsi Kelengkapan: ${item.descriptionAndFlaws}
+• Detail Minus: ${minusText}
+
+${priceSection}
+
+📍 Domisili Barang: Kec. ${item.kecamatan}, Kabupaten Majalengka
+🤝 Metode Transaksi:
+1. COD Area Majalengka (Alun-Alun Majalengka, GGM, Jatiwangi, Kadipaten, dll)
+2. Rekber Amanah via Admin Esteh (info.barkasmajalengka)
+3. Kirim Ekspedisi J&T / JNE / Kurir Lokal se-Majalengka
+
+🌐 Lihat Foto Lengkap & Spek di Etalase Online:
+👉 ${finalCatalogUrl}
+
+📲 MINAT / INGIN NEGO & BOOKING?
+Chat WhatsApp Admin Esteh sekarang:
+👉 ${waInquiryUrl}
+(Nomor Resmi: ${ADMIN_CONTACT.whatsappFormatted})
+
+---
+#barkasmajalengka #infobarkasmajalengka #jualbelimajalengka #majalengka #infomajalengka #prelovedmajalengka #exploremajalengka #thriftingmajalengka #olxmajalengka`;
+};
+
+/**
  * Generate WhatsApp confirmation message from Admin to Penitip
  * Notifies the penitip that their item has been processed and is ready / scheduled for posting!
  */

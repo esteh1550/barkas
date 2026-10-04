@@ -4,15 +4,19 @@ import { calculateListingEstimates, formatRupiah } from '../utils/formatters';
 import {
   generateInstagramFeedCaption,
   generateInstagramStoryCaption,
+  generateFacebookPageCaption,
 } from '../utils/captionGenerator';
 import { db, handleFirestoreError, OperationType } from './firebaseService';
 
 export interface InstagramAutoPostConfig {
   enabledOnNewSubmission: boolean;
   enabledOnAdminLive: boolean;
+  enabledOnFacebookPage?: boolean;
   webhookUrl: string;
   igBusinessAccountId: string;
   metaAccessToken: string;
+  facebookPageId?: string;
+  facebookPageAccessToken?: string;
   feedPhotoMode?: 'single' | 'collage';
 }
 
@@ -27,6 +31,7 @@ export const getInstagramAutoPostConfig = (): InstagramAutoPostConfig => {
       const parsed = JSON.parse(saved);
       return {
         feedPhotoMode: 'collage',
+        enabledOnFacebookPage: true,
         ...parsed,
       };
     }
@@ -36,9 +41,12 @@ export const getInstagramAutoPostConfig = (): InstagramAutoPostConfig => {
   return {
     enabledOnNewSubmission: false,
     enabledOnAdminLive: true,
+    enabledOnFacebookPage: true,
     webhookUrl: '',
     igBusinessAccountId: '',
     metaAccessToken: '',
+    facebookPageId: '',
+    facebookPageAccessToken: '',
     feedPhotoMode: 'collage',
   };
 };
@@ -49,9 +57,12 @@ export const saveInstagramAutoPostConfig = async (
   const cleanConfig: InstagramAutoPostConfig = {
     enabledOnNewSubmission: Boolean(config.enabledOnNewSubmission),
     enabledOnAdminLive: Boolean(config.enabledOnAdminLive),
+    enabledOnFacebookPage: config.enabledOnFacebookPage !== false,
     webhookUrl: (config.webhookUrl || '').trim().slice(0, 500),
     igBusinessAccountId: (config.igBusinessAccountId || '').trim().slice(0, 120),
     metaAccessToken: (config.metaAccessToken || '').trim().slice(0, 600),
+    facebookPageId: (config.facebookPageId || '').trim().slice(0, 120),
+    facebookPageAccessToken: (config.facebookPageAccessToken || '').trim().slice(0, 600),
     feedPhotoMode: config.feedPhotoMode === 'single' ? 'single' : 'collage',
   };
 
@@ -77,7 +88,7 @@ export const saveInstagramAutoPostConfig = async (
 };
 
 /**
- * Synchronizes Instagram Auto-Post Webhook configuration with Firebase Firestore
+ * Synchronizes Instagram & Facebook Auto-Post Webhook configuration with Firebase Firestore
  * so all devices (/admin on phone, tablet, PC, and public consignment form) share the same Webhook URL.
  */
 export const syncInstagramAutoPostConfigWithCloud =
@@ -98,6 +109,10 @@ export const syncInstagramAutoPostConfigWithCloud =
             typeof data.enabledOnAdminLive === 'boolean'
               ? data.enabledOnAdminLive
               : localConfig.enabledOnAdminLive,
+          enabledOnFacebookPage:
+            typeof data.enabledOnFacebookPage === 'boolean'
+              ? data.enabledOnFacebookPage
+              : localConfig.enabledOnFacebookPage !== false,
           webhookUrl: (data.webhookUrl || localConfig.webhookUrl || '').trim(),
           igBusinessAccountId: (
             data.igBusinessAccountId ||
@@ -109,6 +124,18 @@ export const syncInstagramAutoPostConfigWithCloud =
             localConfig.metaAccessToken ||
             ''
           ).trim(),
+          facebookPageId: (
+            data.facebookPageId ||
+            localConfig.facebookPageId ||
+            ''
+          ).trim(),
+          facebookPageAccessToken: (
+            data.facebookPageAccessToken ||
+            localConfig.facebookPageAccessToken ||
+            ''
+          ).trim(),
+          feedPhotoMode:
+            data.feedPhotoMode === 'single' ? 'single' : 'collage',
         };
 
         // If local device has a webhookUrl that wasn't in cloud yet, push it to cloud
@@ -122,7 +149,11 @@ export const syncInstagramAutoPostConfigWithCloud =
           }
         }
         return cloudConfig;
-      } else if (localConfig.webhookUrl.trim() || localConfig.igBusinessAccountId.trim()) {
+      } else if (
+        localConfig.webhookUrl.trim() ||
+        localConfig.igBusinessAccountId.trim() ||
+        localConfig.facebookPageId?.trim()
+      ) {
         // First time migration: push existing local config to Firestore Cloud automatically!
         await saveInstagramAutoPostConfig(localConfig);
         return localConfig;
@@ -136,9 +167,103 @@ export const syncInstagramAutoPostConfigWithCloud =
 
 export interface InstagramPublishResult {
   success: boolean;
-  method: 'webhook' | 'graph_api' | 'none';
+  method: 'webhook' | 'graph_api' | 'facebook_direct' | 'none';
   message: string;
+  instagramSuccess?: boolean;
+  facebookSuccess?: boolean;
+  facebookPostId?: string;
 }
+
+/**
+ * Posts photo & rich caption directly to Facebook Page via Meta Graph API
+ */
+export const postDirectlyToFacebookPage = async (
+  pageId: string,
+  accessToken: string,
+  caption: string,
+  photoUrlOrBase64: string,
+  fileName: string = 'consignment-photo.jpg'
+): Promise<{ success: boolean; postId?: string; message: string }> => {
+  try {
+    const cleanToken = accessToken.trim();
+    const cleanPageId = pageId.trim();
+
+    if (!cleanPageId || !cleanToken) {
+      return { success: false, message: 'Page ID dan Access Token Facebook wajib diisi.' };
+    }
+
+    if (photoUrlOrBase64.startsWith('http://') || photoUrlOrBase64.startsWith('https://')) {
+      const res = await fetch(
+        `https://graph.facebook.com/v19.0/${encodeURIComponent(cleanPageId)}/photos`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: photoUrlOrBase64,
+            caption,
+            access_token: cleanToken,
+          }),
+        }
+      );
+      const data = await res.json();
+      if (data.id || data.post_id) {
+        return {
+          success: true,
+          postId: data.post_id || data.id,
+          message: 'Berhasil diposting ke Facebook Page',
+        };
+      }
+      return {
+        success: false,
+        message: data.error?.message || 'Gagal memposting ke Facebook Page',
+      };
+    }
+
+    // Binary / Base64 upload via FormData
+    const cleanBase64 = photoUrlOrBase64.includes(';base64,')
+      ? photoUrlOrBase64.split(';base64,')[1]
+      : photoUrlOrBase64;
+
+    const byteCharacters = atob(cleanBase64);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: 'image/jpeg' });
+
+    const formData = new FormData();
+    formData.append('source', blob, fileName);
+    formData.append('caption', caption);
+    formData.append('access_token', cleanToken);
+
+    const res = await fetch(
+      `https://graph.facebook.com/v19.0/${encodeURIComponent(cleanPageId)}/photos`,
+      {
+        method: 'POST',
+        body: formData,
+      }
+    );
+
+    const data = await res.json();
+    if (data.id || data.post_id) {
+      return {
+        success: true,
+        postId: data.post_id || data.id,
+        message: 'Berhasil diposting ke Facebook Page',
+      };
+    }
+    return {
+      success: false,
+      message: data.error?.message || 'Gagal memposting ke Facebook Page',
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err?.message || 'Koneksi ke Facebook Graph API gagal',
+    };
+  }
+};
 
 const drawRoundedRect = (
   ctx: CanvasRenderingContext2D,
@@ -709,6 +834,7 @@ export const triggerInstagramAutoPublish = async (
       ? window.location.origin
       : 'https://barkas-two.vercel.app';
   const catalogUrl = `${origin}/?item=${encodeURIComponent(cleanTicket)}`;
+  const facebookCaption = generateFacebookPageCaption(item, catalogUrl);
 
   // Automatically render watermarked Feed (with multi-photo detail thumbnails) & 9:16 Story images on canvas before sending
   const rendered = await renderWatermarkedImagesForItem(item, config.feedPhotoMode || 'collage');
@@ -721,6 +847,8 @@ export const triggerInstagramAutoPublish = async (
     ? rawStoryPoster.split(';base64,')[1]
     : rawStoryPoster;
 
+  const shouldPublishFacebook = config.enabledOnFacebookPage !== false;
+
   // 1. If Webhook URL (Make.com / Zapier / n8n) is configured
   if (config.webhookUrl.trim()) {
     try {
@@ -730,7 +858,8 @@ export const triggerInstagramAutoPublish = async (
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          event: 'instagram_auto_publish',
+          event: 'social_auto_publish',
+          legacyEvent: 'instagram_auto_publish',
           triggerSource,
           timestamp: new Date().toISOString(),
           ticketId: item.id,
@@ -744,6 +873,12 @@ export const triggerInstagramAutoPublish = async (
           listingPriceFormatted: formatRupiah(estimates.suggestedListingPrice),
           feedCaption,
           storyCaption,
+          facebookCaption,
+          facebookPageCaption: facebookCaption,
+          publishToInstagram: true,
+          publishToFacebook: shouldPublishFacebook,
+          facebookPageId: config.facebookPageId || '',
+          platforms: ['instagram', shouldPublishFacebook ? 'facebook' : null].filter(Boolean),
           catalogUrl,
           coverPhotoBase64: rawCoverPhoto,
           coverPhotoCleanBase64: cleanCoverBase64,
@@ -754,16 +889,21 @@ export const triggerInstagramAutoPublish = async (
       });
 
       if (response.ok) {
+        const dest = shouldPublishFacebook
+          ? 'Instagram (Feed & Story) dan Halaman Facebook (Page)'
+          : 'Instagram (Feed & Story)';
         return {
           success: true,
           method: 'webhook',
-          message: `✅ Otomatis terkirim ke Webhook Instagram (Feed & Story) untuk ${item.id}!`,
+          instagramSuccess: true,
+          facebookSuccess: shouldPublishFacebook,
+          message: `✅ Otomatis terkirim ke Webhook ${dest} untuk ${item.id}!`,
         };
       }
       return {
         success: false,
         method: 'webhook',
-        message: `⚠️ Webhook merespons dengan status ${response.status}. Periksa URL Make.com/Zapier Anda.`,
+        message: `⚠️ Webhook merespons dengan status ${response.status}. Periksa skenario Make.com/Zapier Anda.`,
       };
     } catch (err: any) {
       return {
@@ -774,88 +914,163 @@ export const triggerInstagramAutoPublish = async (
     }
   }
 
-  // 2. If Meta Graph API is configured directly (requires public image URL)
-  if (config.igBusinessAccountId.trim() && config.metaAccessToken.trim()) {
-    const firstPhoto = item.photos?.[0] || '';
-    if (!firstPhoto.startsWith('http')) {
-      return {
-        success: false,
-        method: 'graph_api',
-        message:
-          '⚠️ Meta Graph API membutuhkan URL gambar publik (atau gunakan Webhook Make.com untuk upload foto Base64 otomatis).',
-      };
+  // 2. Direct Meta Graph API (Instagram and/or Facebook Page)
+  const hasIgConfig = Boolean(config.igBusinessAccountId.trim() && config.metaAccessToken.trim());
+  const fbToken = (config.facebookPageAccessToken || config.metaAccessToken || '').trim();
+  const hasFbConfig = Boolean(shouldPublishFacebook && config.facebookPageId?.trim() && fbToken);
+
+  if (hasIgConfig || hasFbConfig) {
+    let igSuccess = false;
+    let igErrorMsg = '';
+    let fbSuccess = false;
+    let fbErrorMsg = '';
+    let fbPostId: string | undefined;
+
+    // A. Post to Facebook Page (Supports direct Base64 upload or public URL!)
+    if (hasFbConfig) {
+      try {
+        const fbRes = await postDirectlyToFacebookPage(
+          config.facebookPageId!.trim(),
+          fbToken,
+          facebookCaption,
+          rawCoverPhoto,
+          `${cleanTicket}.jpg`
+        );
+        if (fbRes.success) {
+          fbSuccess = true;
+          fbPostId = fbRes.postId;
+        } else {
+          fbErrorMsg = fbRes.message;
+        }
+      } catch (fbErr: any) {
+        fbErrorMsg = fbErr?.message || 'Gagal posting ke Facebook Page';
+      }
     }
 
-    try {
-      const igUserId = config.igBusinessAccountId.trim();
-      const accessToken = config.metaAccessToken.trim();
+    // B. Post to Instagram Feed & Story (Requires public URL)
+    if (hasIgConfig) {
+      const firstPhoto = item.photos?.[0] || '';
+      if (!firstPhoto.startsWith('http')) {
+        igErrorMsg = 'Instagram API butuh URL gambar publik (Gunakan Webhook Make.com untuk foto lokal/Base64)';
+      } else {
+        try {
+          const igUserId = config.igBusinessAccountId.trim();
+          const accessToken = config.metaAccessToken.trim();
 
-      // Publish Feed container
-      const feedCreateRes = await fetch(
-        `https://graph.facebook.com/v19.0/${encodeURIComponent(igUserId)}/media`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            image_url: firstPhoto,
-            caption: feedCaption,
-            access_token: accessToken,
-          }),
-        }
-      );
-      const feedCreateData = await feedCreateRes.json();
-      if (feedCreateData.id) {
-        await fetch(
-          `https://graph.facebook.com/v19.0/${encodeURIComponent(igUserId)}/media_publish`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              creation_id: feedCreateData.id,
-              access_token: accessToken,
-            }),
+          // Feed container
+          const feedCreateRes = await fetch(
+            `https://graph.facebook.com/v19.0/${encodeURIComponent(igUserId)}/media`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                image_url: firstPhoto,
+                caption: feedCaption,
+                access_token: accessToken,
+              }),
+            }
+          );
+          const feedCreateData = await feedCreateRes.json();
+          if (feedCreateData.id) {
+            await fetch(
+              `https://graph.facebook.com/v19.0/${encodeURIComponent(igUserId)}/media_publish`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  creation_id: feedCreateData.id,
+                  access_token: accessToken,
+                }),
+              }
+            );
           }
-        );
-      }
 
-      // Publish Story container
-      const storyCreateRes = await fetch(
-        `https://graph.facebook.com/v19.0/${encodeURIComponent(igUserId)}/media`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            image_url: firstPhoto,
-            media_type: 'STORIES',
-            access_token: accessToken,
-          }),
-        }
-      );
-      const storyCreateData = await storyCreateRes.json();
-      if (storyCreateData.id) {
-        await fetch(
-          `https://graph.facebook.com/v19.0/${encodeURIComponent(igUserId)}/media_publish`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              creation_id: storyCreateData.id,
-              access_token: accessToken,
-            }),
+          // Story container
+          const storyCreateRes = await fetch(
+            `https://graph.facebook.com/v19.0/${encodeURIComponent(igUserId)}/media`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                image_url: firstPhoto,
+                media_type: 'STORIES',
+                access_token: accessToken,
+              }),
+            }
+          );
+          const storyCreateData = await storyCreateRes.json();
+          if (storyCreateData.id) {
+            await fetch(
+              `https://graph.facebook.com/v19.0/${encodeURIComponent(igUserId)}/media_publish`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  creation_id: storyCreateData.id,
+                  access_token: accessToken,
+                }),
+              }
+            );
           }
-        );
+          igSuccess = true;
+        } catch (igErr: any) {
+          igErrorMsg = igErr?.message || 'Error API Instagram';
+        }
       }
+    }
 
+    if (igSuccess && fbSuccess) {
       return {
         success: true,
         method: 'graph_api',
-        message: `✅ Berhasil diposting otomatis ke IG Feed & Story (@info.barkasmajalengka)!`,
+        instagramSuccess: true,
+        facebookSuccess: true,
+        facebookPostId: fbPostId,
+        message: '✅ Berhasil diposting otomatis ke Instagram Feed/Story DAN Halaman Facebook!',
       };
-    } catch (err: any) {
+    } else if (fbSuccess && !hasIgConfig) {
+      return {
+        success: true,
+        method: 'facebook_direct',
+        facebookSuccess: true,
+        facebookPostId: fbPostId,
+        message: '✅ Berhasil diposting otomatis ke Halaman Facebook!',
+      };
+    } else if (fbSuccess && !igSuccess) {
+      return {
+        success: true,
+        method: 'facebook_direct',
+        facebookSuccess: true,
+        instagramSuccess: false,
+        facebookPostId: fbPostId,
+        message: `✅ Berhasil diposting ke Halaman Facebook! (Instagram: ${igErrorMsg})`,
+      };
+    } else if (igSuccess && !fbSuccess && hasFbConfig) {
+      return {
+        success: true,
+        method: 'graph_api',
+        instagramSuccess: true,
+        facebookSuccess: false,
+        message: `✅ Berhasil ke Instagram Feed & Story! (FB: ${fbErrorMsg})`,
+      };
+    } else if (igSuccess) {
+      return {
+        success: true,
+        method: 'graph_api',
+        instagramSuccess: true,
+        message: '✅ Berhasil diposting otomatis ke IG Feed & Story (@info.barkasmajalengka)!',
+      };
+    } else {
+      const combinedError = [
+        hasFbConfig ? `FB: ${fbErrorMsg || 'Gagal'}` : null,
+        hasIgConfig ? `IG: ${igErrorMsg || 'Gagal'}` : null,
+      ]
+        .filter(Boolean)
+        .join(' | ');
       return {
         success: false,
         method: 'graph_api',
-        message: `⚠️ Gagal memposting via Meta Graph API: ${err?.message || 'Error'}`,
+        message: `⚠️ Gagal auto-post Meta Graph API: ${combinedError || 'Periksa token & izin'}`,
       };
     }
   }
@@ -863,6 +1078,6 @@ export const triggerInstagramAutoPublish = async (
   return {
     success: false,
     method: 'none',
-    message: 'Silakan atur Webhook Make.com / Meta Graph API terlebih dahulu untuk auto-upload.',
+    message: 'Silakan atur Webhook Make.com atau Meta Graph API (Instagram / Facebook Page) terlebih dahulu.',
   };
 };

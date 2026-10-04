@@ -804,6 +804,9 @@ export default function App() {
           saveSubmissions((prev) => {
             const updated = prev.map((s) => (s.id === id ? { ...s, status: newStatus } : s));
             const target = updated.find((s) => s.id === id);
+            if (newStatus === 'Sedang Dipajang (Live)' && target) {
+              triggerInstagramAutoPublish({ ...target, status: newStatus }, 'admin_live').catch(() => {});
+            }
             updateSubmissionStatusInFirebase(id, newStatus).catch(() => {
               if (target) {
                 saveSubmissionToFirebase(target).catch((err) =>
@@ -818,6 +821,9 @@ export default function App() {
           saveSubmissions((prev) => {
             const updated = prev.map((s) => (s.id === id ? { ...s, postStatus: newPostStatus } : s));
             const target = updated.find((s) => s.id === id);
+            if (newPostStatus === 'Posted' && target) {
+              triggerInstagramAutoPublish({ ...target, postStatus: newPostStatus }, 'admin_live').catch(() => {});
+            }
             updateSubmissionPostStatusInFirebase(id, newPostStatus).catch(() => {
               if (target) {
                 saveSubmissionToFirebase(target).catch((err) =>

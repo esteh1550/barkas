@@ -123,8 +123,11 @@ service cloud.firestore {
       && data.enabledOnNewSubmission is bool
       && data.enabledOnAdminLive is bool
       && data.webhookUrl is string && data.webhookUrl.size() <= 500
+      && (!('enabledOnFacebookPage' in data) || data.enabledOnFacebookPage is bool)
       && (!('igBusinessAccountId' in data) || (data.igBusinessAccountId is string && data.igBusinessAccountId.size() <= 120))
       && (!('metaAccessToken' in data) || (data.metaAccessToken is string && data.metaAccessToken.size() <= 600))
+      && (!('facebookPageId' in data) || (data.facebookPageId is string && data.facebookPageId.size() <= 120))
+      && (!('facebookPageAccessToken' in data) || (data.facebookPageAccessToken is string && data.facebookPageAccessToken.size() <= 600))
       && (!('feedPhotoMode' in data) || data.feedPhotoMode in ['single', 'collage'])
       && (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 60));
     }

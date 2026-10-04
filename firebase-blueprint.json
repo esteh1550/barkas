@@ -218,7 +218,7 @@
     },
     "AppSettings": {
       "title": "AppSettings",
-      "description": "Pengaturan global aplikasi lintas perangkat (termasuk konfigurasi Webhook Auto-Post Instagram)",
+      "description": "Pengaturan global aplikasi lintas perangkat (termasuk konfigurasi Webhook Auto-Post Instagram & Facebook Page)",
       "type": "object",
       "properties": {
         "enabledOnNewSubmission": {
@@ -229,9 +229,13 @@
           "type": "boolean",
           "description": "Aktifkan auto-post saat admin mengubah status ke Posted (Live)"
         },
+        "enabledOnFacebookPage": {
+          "type": "boolean",
+          "description": "Aktifkan auto-post juga ke Halaman Facebook (Facebook Page)"
+        },
         "webhookUrl": {
           "type": "string",
-          "description": "URL Webhook Make.com / Zapier untuk auto-post Instagram"
+          "description": "URL Webhook Make.com / Zapier untuk auto-post Instagram & Facebook Page"
         },
         "igBusinessAccountId": {
           "type": "string",
@@ -240,6 +244,19 @@
         "metaAccessToken": {
           "type": "string",
           "description": "Access Token Meta Graph API opsional"
+        },
+        "facebookPageId": {
+          "type": "string",
+          "description": "ID Halaman Facebook (Facebook Page ID) opsional"
+        },
+        "facebookPageAccessToken": {
+          "type": "string",
+          "description": "Page Access Token Facebook opsional"
+        },
+        "feedPhotoMode": {
+          "type": "string",
+          "enum": ["single", "collage"],
+          "description": "Format foto Feed: 'single' (1 foto) atau 'collage' (kolase multi-foto)"
         },
         "updatedAt": {
           "type": "string",
