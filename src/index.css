@@ -1,14 +1,32 @@
 @import "tailwindcss";
 
 :root,
+[data-theme="editorial"] {
+  --brand-primary: #27211E;           /* Deep Warm Espresso Charcoal */
+  --brand-primary-hover: #3D3531;
+  --brand-accent: #C25E34;            /* Artisanal Warm Terracotta */
+  --brand-accent-hover: #A74C25;
+  --brand-gold: #D4A373;              /* Muted Antique Brass */
+  --brand-olive: #3F4E4F;             /* Vintage Olive */
+  --bg-canvas: #F7F4EE;               /* Warm Tactile Paper / Curated Gazette */
+  --bg-surface: #FFFFFF;
+  --bg-muted: #EFE9DE;                /* Warm Aged Parchment / Linen */
+  --text-main: #1C1917;               /* Deep Charcoal Ink */
+  --text-muted: #57534E;              /* Warm Muted Sepia Ink */
+  --border-card: #E5DFD3;             /* Hairline tactile warm border */
+}
+
 [data-theme="forest"] {
   --brand-primary: #0F291E;
   --brand-primary-hover: #183F2E;
   --brand-accent: #D97706;
+  --brand-gold: #D4A373;
+  --brand-olive: #2D4A3E;
   --bg-canvas: #F6F3EC;
   --bg-surface: #FFFFFF;
   --bg-muted: #EFECE4;
   --text-main: #1C1917;
+  --text-muted: #57534E;
   --border-card: #E2DDD2;
 }
 
@@ -16,10 +34,13 @@
   --brand-primary: #431407;
   --brand-primary-hover: #65200B;
   --brand-accent: #EA580C;
+  --brand-gold: #D4A373;
+  --brand-olive: #3F4E4F;
   --bg-canvas: #FAF4EE;
   --bg-surface: #FFFFFF;
   --bg-muted: #F3E9DF;
   --text-main: #291D18;
+  --text-muted: #785A4E;
   --border-card: #E6D5C5;
 }
 
@@ -27,10 +48,13 @@
   --brand-primary: #111827;
   --brand-primary-hover: #1F2937;
   --brand-accent: #F59E0B;
+  --brand-gold: #FBBF24;
+  --brand-olive: #374151;
   --bg-canvas: #0B0F17;
   --bg-surface: #151C28;
   --bg-muted: #1E293B;
   --text-main: #F1F5F9;
+  --text-muted: #94A3B8;
   --border-card: #2A364B;
 }
 
@@ -38,10 +62,13 @@
   --brand-primary: #1B365D;
   --brand-primary-hover: #24477A;
   --brand-accent: #F59E0B;
+  --brand-gold: #D4A373;
+  --brand-olive: #3F4E4F;
   --bg-canvas: #F8FAFC;
   --bg-surface: #FFFFFF;
   --bg-muted: #F1F5F9;
   --text-main: #1E293B;
+  --text-muted: #64748B;
   --border-card: #E2E8F0;
 }
 
@@ -54,8 +81,12 @@
   }
 }
 
+.font-serif-editorial {
+  font-family: 'Fraunces', 'Playfair Display', Georgia, serif;
+}
+
 .font-serif-accent {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Fraunces', 'Playfair Display', Georgia, serif;
 }
 
 /* Dynamic Theme Remapping across all components */
@@ -75,6 +106,42 @@
 }
 .bg-\[\#F8FAFC\] {
   background-color: var(--bg-canvas) !important;
+}
+
+/* Warm Editorial Card & Surface Adaptations */
+:root .border-slate-200,
+[data-theme="editorial"] .border-slate-200 {
+  border-color: #E5DFD3 !important;
+}
+:root .border-slate-100,
+[data-theme="editorial"] .border-slate-100 {
+  border-color: #EFE9DE !important;
+}
+:root .border-slate-300,
+[data-theme="editorial"] .border-slate-300 {
+  border-color: #DCD4C5 !important;
+}
+:root .bg-slate-50,
+[data-theme="editorial"] .bg-slate-50 {
+  background-color: #FAF7F2 !important;
+}
+:root .bg-slate-100,
+[data-theme="editorial"] .bg-slate-100 {
+  background-color: #F1ECE1 !important;
+}
+:root .text-slate-900,
+:root .text-slate-800,
+[data-theme="editorial"] .text-slate-900,
+[data-theme="editorial"] .text-slate-800 {
+  color: #1C1917 !important;
+}
+:root .text-slate-700,
+:root .text-slate-600,
+:root .text-slate-500,
+[data-theme="editorial"] .text-slate-700,
+[data-theme="editorial"] .text-slate-600,
+[data-theme="editorial"] .text-slate-500 {
+  color: #57534E !important;
 }
 
 /* Obsidian Dark Mode Surface Adaptations */
@@ -109,7 +176,7 @@
   color: #0F172A !important;
 }
 
-/* Warm Archival Card Borders for Forest & Terracotta */
+/* Forest & Terracotta Card Adaptations */
 [data-theme="forest"] .border-slate-200 {
   border-color: #E2DDD2 !important;
 }
@@ -123,7 +190,7 @@
   background-color: #FDF9F5 !important;
 }
 
-/* Custom scrollbars */
+/* Custom subtle scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -132,9 +199,9 @@
   background: var(--bg-canvas);
 }
 ::-webkit-scrollbar-thumb {
-  background: #a8a29e;
+  background: #C4BCB3;
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #78716c;
+  background: #A39B92;
 }

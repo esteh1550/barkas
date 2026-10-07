@@ -105,34 +105,34 @@ export const WantedBoardSection: React.FC<WantedBoardSectionProps> = ({
   return (
     <div className="mb-8 space-y-6">
       {/* Header Banner */}
-      <div className="bg-[#1B365D] text-white rounded-3xl p-5 sm:p-6 border-2 border-amber-400 shadow-md">
+      <div className="bg-stone-900 text-stone-50 border-2 border-stone-900 shadow-[5px_5px_0px_#C25E34] p-5 sm:p-7">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1.5">
-            <span className="text-amber-300 text-xs font-bold uppercase tracking-wider block">
-              Papan Permintaan Pembeli · Kabupaten Majalengka
+            <span className="text-amber-300 text-xs font-mono font-bold uppercase tracking-widest block">
+              LEMBAR III · PAPAN WARTA PERMINTAAN WARGA · KABUPATEN MAJALENGKA
             </span>
-            <h2 className="text-lg sm:text-xl font-extrabold leading-tight">
+            <h2 className="text-xl sm:text-3xl font-serif-editorial font-bold leading-tight">
               Titip Cari Barang (Wanted Board)
             </h2>
-            <p className="text-xs text-slate-200 max-w-2xl leading-relaxed">
-              Belum menemukan barang incaran Anda di etalase? Tulis barang yang sedang Anda cari beserta budgetnya. Warga Majalengka yang memiliki barang tersebut dapat langsung menawarkan atau menitipjualkannya!
+            <p className="text-xs text-stone-300 max-w-2xl leading-relaxed">
+              Belum menemukan barang incaran Anda di etalase? Daftarkan barang yang dicari beserta estimasi budgetnya. Pemilik barang di 26 kecamatan Majalengka dapat langsung menawarkan kepada Anda melalui kurasi Admin!
             </p>
           </div>
 
           <button
             type="button"
             onClick={() => setIsFormOpen((prev) => !prev)}
-            className="px-4 py-2.5 rounded-2xl bg-amber-400 hover:bg-amber-300 text-stone-950 font-extrabold text-xs sm:text-sm transition-colors flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
+            className="px-4 py-2.5 bg-amber-400 hover:bg-amber-300 text-stone-950 font-mono font-bold text-xs sm:text-sm transition-colors flex items-center justify-center gap-1.5 shrink-0 cursor-pointer border-2 border-amber-500 shadow-[2px_2px_0px_#1C1917]"
           >
             {isFormOpen ? (
               <>
                 <X className="w-4 h-4" />
-                <span>Tutup Form</span>
+                <span>TUTUP FORMULIR</span>
               </>
             ) : (
               <>
                 <Plus className="w-4 h-4" />
-                <span>Pasang Info Cari Barang</span>
+                <span>PASANG WARTA CARI BARANG</span>
               </>
             )}
           </button>
@@ -147,10 +147,10 @@ export const WantedBoardSection: React.FC<WantedBoardSectionProps> = ({
                   key={cat}
                   type="button"
                   onClick={() => setSelectedCategory(cat)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                  className={`px-3 py-1.5 border text-xs font-mono font-bold whitespace-nowrap transition-colors cursor-pointer ${
                     selectedCategory === cat
-                      ? 'bg-amber-400 text-[#1B365D]'
-                      : 'bg-white/10 text-slate-200 hover:bg-white/20'
+                      ? 'bg-amber-400 text-stone-950 border-amber-400 shadow-[2px_2px_0px_#1C1917]'
+                      : 'bg-stone-800 text-stone-300 border-stone-700 hover:bg-stone-700 hover:text-stone-100'
                   }`}
                 >
                   {cat}
@@ -160,13 +160,13 @@ export const WantedBoardSection: React.FC<WantedBoardSectionProps> = ({
           </div>
 
           <div className="relative min-w-[240px]">
-            <Search className="w-4 h-4 text-slate-300 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Cari barang yang sedang dicari warga..."
-              className="w-full pl-9 pr-3.5 py-2 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-slate-300 text-xs focus:bg-white focus:text-slate-900 focus:placeholder:text-slate-400 focus:outline-hidden transition-colors"
+              className="w-full pl-9 pr-3.5 py-2 border-2 border-stone-600 bg-stone-800 text-white placeholder:text-stone-400 text-xs focus:bg-white focus:text-stone-900 focus:placeholder:text-stone-500 focus:outline-hidden transition-colors font-mono"
             />
           </div>
         </div>
@@ -176,29 +176,32 @@ export const WantedBoardSection: React.FC<WantedBoardSectionProps> = ({
       {isFormOpen && (
         <form
           onSubmit={handleSubmitRequest}
-          className="bg-white rounded-3xl p-5 sm:p-6 border-2 border-[#1B365D] shadow-md space-y-4"
+          className="bg-[#FAF7F2] p-5 sm:p-6 border-2 border-stone-800 shadow-[4px_4px_0px_#1C1917] space-y-4"
         >
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="flex items-center justify-between border-b-2 border-stone-800 pb-3">
             <div>
-              <h3 className="text-sm sm:text-base font-extrabold text-[#1B365D]">
+              <span className="text-[10px] font-mono uppercase tracking-widest text-[#C25E34] font-bold block">
+                PENGAJUAN WARTA
+              </span>
+              <h3 className="text-sm sm:text-base font-serif-editorial font-bold text-stone-950">
                 Formulir Titip Cari Barang Bekas Berkualitas
               </h3>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-stone-600 font-serif-editorial italic">
                 Nomor WhatsApp Anda tetap aman (disembunyikan dari publik) dan hanya dihubungi melalui Admin Esteh.
               </p>
             </div>
           </div>
 
           {formError && (
-            <p className="text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-3.5 py-2.5 font-semibold">
+            <p className="text-xs text-rose-700 bg-rose-50 border-2 border-rose-400 px-3.5 py-2.5 font-mono font-bold shadow-[2px_2px_0px_#E11D48]">
               {formError}
             </p>
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Nama Anda <span className="text-rose-500">*</span>
+              <label className="block text-xs font-bold font-mono text-stone-800 mb-1 uppercase">
+                Nama Anda <span className="text-[#C25E34]">*</span>
               </label>
               <input
                 type="text"
@@ -206,13 +209,13 @@ export const WantedBoardSection: React.FC<WantedBoardSectionProps> = ({
                 value={requesterName}
                 onChange={(e) => setRequesterName(e.target.value)}
                 placeholder="Contoh: Daffa Pratama"
-                className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:border-[#1B365D] focus:outline-hidden"
+                className="w-full px-3.5 py-2.5 text-xs sm:text-sm border-2 border-stone-400 bg-white text-stone-900 focus:border-stone-900 focus:outline-hidden shadow-[2px_2px_0px_rgba(0,0,0,0.05)]"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                No. WhatsApp Aktif <span className="text-rose-500">*</span>
+              <label className="block text-xs font-bold font-mono text-stone-800 mb-1 uppercase">
+                No. WhatsApp Aktif <span className="text-[#C25E34]">*</span>
               </label>
               <input
                 type="tel"
@@ -220,18 +223,18 @@ export const WantedBoardSection: React.FC<WantedBoardSectionProps> = ({
                 value={whatsappNumber}
                 onChange={(e) => setWhatsappNumber(e.target.value)}
                 placeholder="Contoh: 081234567890"
-                className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:border-[#1B365D] focus:outline-hidden"
+                className="w-full px-3.5 py-2.5 text-xs sm:text-sm border-2 border-stone-400 bg-white text-stone-900 focus:border-stone-900 focus:outline-hidden shadow-[2px_2px_0px_rgba(0,0,0,0.05)]"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Domisili Kecamatan <span className="text-rose-500">*</span>
+              <label className="block text-xs font-bold font-mono text-stone-800 mb-1 uppercase">
+                Domisili Kecamatan <span className="text-[#C25E34]">*</span>
               </label>
               <select
                 value={kecamatan}
                 onChange={(e) => setKecamatan(e.target.value)}
-                className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:border-[#1B365D] focus:outline-hidden"
+                className="w-full px-3.5 py-2.5 text-xs sm:text-sm border-2 border-stone-400 bg-white text-stone-900 focus:border-stone-900 focus:outline-hidden shadow-[2px_2px_0px_rgba(0,0,0,0.05)]"
               >
                 {KECAMATAN_MAJALENGKA.map((kec) => (
                   <option key={kec} value={kec}>
@@ -244,13 +247,13 @@ export const WantedBoardSection: React.FC<WantedBoardSectionProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Kategori Barang <span className="text-rose-500">*</span>
+              <label className="block text-xs font-bold font-mono text-stone-800 mb-1 uppercase">
+                Kategori Barang <span className="text-[#C25E34]">*</span>
               </label>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value as ItemCategory)}
-                className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:border-[#1B365D] focus:outline-hidden"
+                className="w-full px-3.5 py-2.5 text-xs sm:text-sm border-2 border-stone-400 bg-white text-stone-900 focus:border-stone-900 focus:outline-hidden shadow-[2px_2px_0px_rgba(0,0,0,0.05)]"
               >
                 {CATEGORIES.map((c) => (
                   <option key={c.label} value={c.label}>
@@ -261,8 +264,8 @@ export const WantedBoardSection: React.FC<WantedBoardSectionProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Barang & Ukuran yang Dicari <span className="text-rose-500">*</span>
+              <label className="block text-xs font-bold font-mono text-stone-800 mb-1 uppercase">
+                Barang & Ukuran yang Dicari <span className="text-[#C25E34]">*</span>
               </label>
               <input
                 type="text"
@@ -270,13 +273,13 @@ export const WantedBoardSection: React.FC<WantedBoardSectionProps> = ({
                 value={itemWanted}
                 onChange={(e) => setItemWanted(e.target.value)}
                 placeholder="Contoh: Helm Cargloss Hitam Doff Size L"
-                className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:border-[#1B365D] focus:outline-hidden"
+                className="w-full px-3.5 py-2.5 text-xs sm:text-sm border-2 border-stone-400 bg-white text-stone-900 focus:border-stone-900 focus:outline-hidden shadow-[2px_2px_0px_rgba(0,0,0,0.05)]"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Budget Maksimal (Rp) <span className="text-rose-500">*</span>
+              <label className="block text-xs font-bold font-mono text-stone-800 mb-1 uppercase">
+                Budget Maksimal (Rp) <span className="text-[#C25E34]">*</span>
               </label>
               <input
                 type="text"
@@ -287,13 +290,13 @@ export const WantedBoardSection: React.FC<WantedBoardSectionProps> = ({
                   setMaxBudgetRaw(num > 0 ? String(num) : '');
                 }}
                 placeholder="Contoh: 200.000"
-                className="w-full px-3.5 py-2.5 text-xs sm:text-sm font-mono rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:border-[#1B365D] focus:outline-hidden"
+                className="w-full px-3.5 py-2.5 text-xs sm:text-sm font-mono border-2 border-stone-400 bg-white text-stone-900 focus:border-stone-900 focus:outline-hidden shadow-[2px_2px_0px_rgba(0,0,0,0.05)]"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
+            <label className="block text-xs font-bold font-mono text-stone-800 mb-1 uppercase">
               Catatan Spesifikasi / Kondisi yang Diharapkan
             </label>
             <input
@@ -301,24 +304,24 @@ export const WantedBoardSection: React.FC<WantedBoardSectionProps> = ({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Contoh: Busa masih tebal, lecet pemakaian wajar tidak masalah, siap COD Alun-Alun Majalengka"
-              className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:border-[#1B365D] focus:outline-hidden"
+              className="w-full px-3.5 py-2.5 text-xs sm:text-sm border-2 border-stone-400 bg-white text-stone-900 focus:border-stone-900 focus:outline-hidden shadow-[2px_2px_0px_rgba(0,0,0,0.05)]"
             />
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-2">
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-300">
             <button
               type="button"
               onClick={() => setIsFormOpen(false)}
-              className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer"
+              className="px-4 py-2 border-2 border-stone-400 hover:border-stone-800 bg-white text-stone-800 text-xs font-mono font-bold cursor-pointer transition-colors"
             >
-              Batal
+              BATAL
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-5 py-2.5 rounded-xl bg-[#1B365D] hover:bg-[#24477A] text-white text-xs font-extrabold cursor-pointer disabled:opacity-60"
+              className="px-5 py-2.5 bg-stone-900 hover:bg-stone-800 text-amber-200 text-xs font-mono font-bold border-2 border-stone-900 shadow-[2px_2px_0px_#C25E34] cursor-pointer disabled:opacity-60 transition-colors uppercase"
             >
-              {isSubmitting ? 'Menyimpan...' : 'Tayangkan Permintaan Cari Barang'}
+              {isSubmitting ? 'Menyimpan...' : 'TAYANGKAN PERMINTAAN CARI BARANG'}
             </button>
           </div>
         </form>
@@ -326,12 +329,12 @@ export const WantedBoardSection: React.FC<WantedBoardSectionProps> = ({
 
       {/* Wanted Requests Grid */}
       {filteredRequests.length === 0 ? (
-        <div className="bg-white rounded-3xl p-8 text-center border border-slate-200 space-y-3">
-          <h3 className="text-sm font-extrabold text-slate-800">
+        <div className="bg-[#FAF7F2] p-8 text-center border-2 border-stone-800 shadow-[3px_3px_0px_#1C1917] space-y-3">
+          <h3 className="text-sm font-bold font-mono text-stone-950 uppercase">
             Belum Ada Permintaan Barang pada Filter Ini
           </h3>
-          <p className="text-xs text-slate-500 max-w-md mx-auto">
-            Sedang mencari sepatu, helm, jaket, atau gadget preloved di Majalengka? Klik tombol <strong>"Pasang Info Cari Barang"</strong> di atas agar pemilik barang dapat menawarkan kepada Anda!
+          <p className="text-xs text-stone-600 max-w-md mx-auto font-serif-editorial italic">
+            Sedang mencari sepatu, helm, jaket, atau gadget preloved di Majalengka? Klik tombol <strong>"PASANG WARTA CARI BARANG"</strong> di atas agar pemilik barang dapat menawarkan kepada Anda!
           </p>
         </div>
       ) : (
@@ -353,7 +356,7 @@ Saya ingin menawarkan / menitipjualkan barang saya untuk permintaan ini. Terima 
             return (
               <div
                 key={req.id}
-                className="bg-white rounded-3xl p-5 border border-slate-200 shadow-xs hover:shadow-md transition-all flex flex-col justify-between gap-4"
+                className="bg-[#FAF7F2] border-2 border-stone-800 shadow-[4px_4px_0px_#1C1917] p-5 flex flex-col justify-between gap-4 transition-transform hover:-translate-y-1"
               >
                 <div className="space-y-2.5">
                   <div className="flex items-center justify-between gap-2 text-xs text-slate-500">
@@ -371,15 +374,15 @@ Saya ingin menawarkan / menitipjualkan barang saya untuk permintaan ini. Terima 
                     </span>
                   </div>
 
-                  <h3 className="text-base font-extrabold text-slate-900 leading-snug">
+                  <h3 className="text-base font-serif-editorial font-bold text-stone-900 leading-snug">
                     Dicari: {req.itemWanted}
                   </h3>
 
-                  <p className="text-xs text-slate-600 leading-relaxed">{req.notes}</p>
+                  <p className="text-xs text-stone-600 leading-relaxed">{req.notes}</p>
 
-                  <div className="pt-1 flex items-center justify-between text-xs text-slate-500">
+                  <div className="pt-1 flex items-center justify-between text-xs text-stone-500">
                     <span>
-                      Pencari: <strong className="text-slate-800">{req.requesterName}</strong> · Kec. {req.kecamatan}
+                      Pencari: <strong className="text-stone-800">{req.requesterName}</strong> · Kec. {req.kecamatan}
                     </span>
                     <span>
                       {new Date(req.createdAt).toLocaleDateString('id-ID', {
@@ -390,16 +393,27 @@ Saya ingin menawarkan / menitipjualkan barang saya untuk permintaan ini. Terima 
                   </div>
                 </div>
 
-                <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <span className="text-[10px] text-slate-400 block">Estimasi Budget Siap Bayar</span>
-                    <strong className="text-sm sm:text-base font-mono font-black text-[#1B365D] tabular-nums">
-                      s.d. {formatRupiah(req.maxBudget)}
-                    </strong>
+                <div className="pt-3 border-t-2 border-stone-800 flex flex-col gap-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <span className="text-[10px] font-mono uppercase tracking-wider text-stone-600 block">
+                        ESTIMASI BUDGET
+                      </span>
+                      <strong className="text-base font-mono font-black text-stone-950 tabular-nums">
+                        s.d. {formatRupiah(req.maxBudget)}
+                      </strong>
+                    </div>
+
+                    {isFulfilled && (
+                      <span className="inline-flex items-center gap-1 text-xs font-mono font-bold text-emerald-800 px-2 py-0.5 bg-emerald-100 border border-emerald-300">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>TERPENUHI</span>
+                      </span>
+                    )}
                   </div>
 
-                  {!isFulfilled ? (
-                    <div className="flex items-center gap-2">
+                  {!isFulfilled && (
+                    <div className="flex flex-wrap items-center gap-2 pt-0.5">
                       <button
                         type="button"
                         onClick={() =>
@@ -409,27 +423,22 @@ Saya ingin menawarkan / menitipjualkan barang saya untuk permintaan ini. Terima 
                             suggestedNettPrice: suggestedNett,
                           })
                         }
-                        className="px-3 py-2 rounded-xl bg-[#1B365D] hover:bg-[#24477A] text-white text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                        className="flex-1 min-w-[130px] px-2.5 py-1.5 bg-white hover:bg-stone-100 text-stone-900 text-xs font-mono font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer border border-stone-800 shadow-[1px_1px_0px_#1C1917]"
                       >
-                        <span>Titip Jual Barang Ini</span>
-                        <ArrowRight className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Titip Barang Ini</span>
+                        <ArrowRight className="w-3.5 h-3.5 text-stone-800" />
                       </button>
 
                       <a
                         href={offerWaUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors inline-flex items-center gap-1 whitespace-nowrap"
+                        className="flex-1 min-w-[110px] px-2.5 py-1.5 bg-stone-900 hover:bg-stone-800 text-amber-200 text-xs font-mono font-bold transition-colors inline-flex items-center justify-center gap-1 border border-stone-900 shadow-[1px_1px_0px_#C25E34]"
                       >
                         <MessageCircle className="w-3.5 h-3.5" />
                         <span>Tawarkan (WA)</span>
                       </a>
                     </div>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700">
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>Terpenuhi</span>
-                    </span>
                   )}
                 </div>
               </div>

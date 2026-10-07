@@ -82,7 +82,6 @@ export const SubmissionsListModal: React.FC<SubmissionsListModalProps> = ({
   const handleExportCSV = (exportOnlyFiltered: boolean = false) => {
     const itemsToExport = exportOnlyFiltered ? filtered : submissions;
     if (itemsToExport.length === 0) {
-      alert('Tidak ada data untuk diekspor.');
       return;
     }
 
@@ -141,8 +140,7 @@ export const SubmissionsListModal: React.FC<SubmissionsListModalProps> = ({
     try {
       await generateConsignmentPDF(item);
     } catch (e) {
-      console.error(e);
-      alert('Gagal mengunduh PDF.');
+      console.error('Gagal mengunduh PDF:', e);
     } finally {
       setGeneratingPdfId(null);
     }

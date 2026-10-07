@@ -221,27 +221,27 @@ export const LiveCatalogSection: React.FC<LiveCatalogSectionProps> = ({
   return (
     <div className="mb-8 space-y-6">
       {/* Header Banner */}
-      <div className="bg-[#1B365D] text-white rounded-3xl p-5 sm:p-6 border-2 border-amber-400 shadow-md">
+      <div className="bg-stone-900 text-stone-50 border-2 border-stone-900 shadow-[5px_5px_0px_#C25E34] p-5 sm:p-7">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1.5">
-            <span className="text-amber-300 text-xs font-bold uppercase tracking-wider block">
-              Etalase Resmi Ready Stock · Kabupaten Majalengka
+            <span className="text-amber-300 text-xs font-mono font-bold uppercase tracking-widest block">
+              LEMBAR I · ETALASE RESMI READY STOCK · KABUPATEN MAJALENGKA
             </span>
-            <h2 className="text-lg sm:text-xl font-extrabold leading-tight">
+            <h2 className="text-xl sm:text-3xl font-serif-editorial font-bold leading-tight">
               Katalog Barang Sedang Dipajang (Live)
             </h2>
-            <p className="text-xs text-slate-200 max-w-2xl leading-relaxed">
+            <p className="text-xs text-stone-300 max-w-2xl leading-relaxed">
               Seluruh barang di bawah ini telah lolos kurasi fisik & keaslian oleh tim{' '}
-              <strong>info.barkasmajalengka</strong>. Anda dapat mengurutkan harga, membandingkan hingga 3 barang, atau mengajukan Nego Tipis & memilih titik COD Majalengka.
+              <strong className="text-amber-200">info.barkasmajalengka</strong>. Anda dapat membandingkan hingga 3 barang, mengajukan Nego Tipis, atau memilih titik COD se-Majalengka.
             </p>
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
-            <div className="px-4 py-2.5 rounded-2xl bg-white/10 border border-white/15 text-right">
-              <span className="text-[10px] text-amber-200 block uppercase tracking-wider">
-                Stok Tersedia
+            <div className="px-4 py-2.5 bg-stone-800 border border-stone-700 text-right">
+              <span className="text-[10px] text-amber-300 font-mono block uppercase tracking-wider">
+                STOK TERSEDIA
               </span>
-              <strong className="text-lg font-mono font-black text-white tabular-nums">
+              <strong className="text-xl font-mono font-black text-stone-50 tabular-nums">
                 {items.length} Barang
               </strong>
             </div>
@@ -258,10 +258,10 @@ export const LiveCatalogSection: React.FC<LiveCatalogSectionProps> = ({
                   key={cat}
                   type="button"
                   onClick={() => setSelectedCategory(cat)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-colors flex items-center gap-1 cursor-pointer ${
+                  className={`px-3 py-1.5 border text-xs font-mono font-bold whitespace-nowrap transition-colors flex items-center gap-1 cursor-pointer ${
                     selectedCategory === cat
-                      ? 'bg-amber-400 text-[#1B365D]'
-                      : 'bg-white/10 text-slate-200 hover:bg-white/20'
+                      ? 'bg-amber-400 text-stone-950 border-amber-400 shadow-[2px_2px_0px_#1C1917]'
+                      : 'bg-stone-800 text-stone-300 border-stone-700 hover:bg-stone-700 hover:text-stone-100'
                   }`}
                 >
                   {cat === 'Wishlist' && <Heart className="w-3 h-3 fill-current" />}
@@ -274,13 +274,13 @@ export const LiveCatalogSection: React.FC<LiveCatalogSectionProps> = ({
 
             {/* Search input */}
             <div className="relative min-w-[240px]">
-              <Search className="w-4 h-4 text-slate-300 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Cari merk, ukuran, kecamatan..."
-                className="w-full pl-9 pr-3.5 py-2 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-slate-300 text-xs focus:bg-white focus:text-slate-900 focus:placeholder:text-slate-400 focus:outline-hidden transition-colors"
+                className="w-full pl-9 pr-3.5 py-2 border-2 border-stone-600 bg-stone-800 text-white placeholder:text-stone-400 text-xs focus:bg-white focus:text-stone-900 focus:placeholder:text-stone-500 focus:outline-hidden transition-colors font-mono"
               />
             </div>
           </div>
@@ -291,20 +291,30 @@ export const LiveCatalogSection: React.FC<LiveCatalogSectionProps> = ({
               <button
                 type="button"
                 onClick={() => setOnlyPriceDrop((prev) => !prev)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer whitespace-nowrap border ${
+                className={`px-3 py-1.5 border-2 text-xs font-mono font-bold transition-colors cursor-pointer whitespace-nowrap ${
                   onlyPriceDrop
-                    ? 'bg-rose-600 text-white border-rose-400'
-                    : 'bg-white/10 text-amber-200 border-white/15 hover:bg-white/20'
+                    ? 'bg-rose-700 text-stone-50 border-rose-900 shadow-[2px_2px_0px_#1C1917]'
+                    : 'bg-stone-800 text-amber-300 border-stone-700 hover:bg-stone-700 shadow-[1px_1px_0px_#1C1917]'
                 }`}
               >
                 Promo Turun Harga ({priceDropCount})
               </button>
 
+              {onSwitchToForm && (
+                <button
+                  type="button"
+                  onClick={onSwitchToForm}
+                  className="px-3 py-1.5 border-2 border-stone-800 bg-[#ECE5D8] hover:bg-white text-stone-900 text-xs font-mono font-bold cursor-pointer whitespace-nowrap shadow-[2px_2px_0px_#1C1917]"
+                >
+                  + Titip Jual (Lembar II)
+                </button>
+              )}
+
               {onSwitchToWanted && (
                 <button
                   type="button"
                   onClick={onSwitchToWanted}
-                  className="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-stone-950 text-xs font-extrabold cursor-pointer whitespace-nowrap"
+                  className="px-3 py-1.5 border-2 border-amber-500 bg-amber-400 hover:bg-amber-300 text-stone-950 text-xs font-mono font-bold cursor-pointer whitespace-nowrap shadow-[2px_2px_0px_#1C1917]"
                 >
                   + Titip Cari Barang Incaran
                 </button>
@@ -314,7 +324,7 @@ export const LiveCatalogSection: React.FC<LiveCatalogSectionProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsCompareModalOpen(true)}
-                  className="px-3 py-1.5 rounded-xl bg-amber-400 text-stone-950 text-xs font-extrabold cursor-pointer whitespace-nowrap"
+                  className="px-3 py-1.5 border-2 border-amber-500 bg-amber-400 text-stone-950 text-xs font-mono font-bold cursor-pointer whitespace-nowrap shadow-[2px_2px_0px_#1C1917]"
                 >
                   Bandingkan Barang ({compareIds.length}/3)
                 </button>
@@ -322,8 +332,8 @@ export const LiveCatalogSection: React.FC<LiveCatalogSectionProps> = ({
             </div>
 
             <div className="flex items-center gap-2 text-xs">
-              <span className="text-slate-300">Urutkan:</span>
-              <div className="flex items-center gap-1 bg-white/10 p-1 rounded-xl border border-white/15">
+              <span className="text-stone-400 font-mono">Urutkan:</span>
+              <div className="flex items-center gap-1 bg-stone-800 p-1 border border-stone-600">
                 {[
                   { id: 'newest', label: 'Terbaru' },
                   { id: 'price_asc', label: 'Termurah' },
@@ -333,10 +343,10 @@ export const LiveCatalogSection: React.FC<LiveCatalogSectionProps> = ({
                     key={opt.id}
                     type="button"
                     onClick={() => setSortBy(opt.id as SortOption)}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer whitespace-nowrap ${
+                    className={`px-2.5 py-1 border text-[11px] font-mono font-bold transition-colors cursor-pointer whitespace-nowrap ${
                       sortBy === opt.id
-                        ? 'bg-amber-400 text-[#1B365D]'
-                        : 'text-slate-200 hover:text-white'
+                        ? 'bg-amber-400 text-stone-950 border-amber-400 shadow-[1px_1px_0px_#1C1917]'
+                        : 'border-transparent text-stone-300 hover:text-white hover:bg-stone-700'
                     }`}
                   >
                     {opt.label}
@@ -372,22 +382,22 @@ export const LiveCatalogSection: React.FC<LiveCatalogSectionProps> = ({
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-2">
-            {onSwitchToWanted && (
-              <button
-                type="button"
-                onClick={onSwitchToWanted}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-400 text-stone-950 text-xs font-extrabold hover:bg-amber-300 transition-colors cursor-pointer"
-              >
-                <span>Pasang di Papan Titip Cari Barang</span>
-              </button>
-            )}
             {onSwitchToForm && (
               <button
                 type="button"
                 onClick={onSwitchToForm}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#1B365D] text-white text-xs font-bold hover:bg-[#24477A] transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-4 py-2 border-2 border-stone-800 bg-stone-900 text-amber-200 text-xs font-mono font-bold shadow-[2px_2px_0px_#C25E34] hover:bg-stone-800 transition-colors cursor-pointer"
               >
-                <span>Titip Jual Barang Anda Sekarang</span>
+                <span>Titip Jual Barang (Lembar II)</span>
+              </button>
+            )}
+            {onSwitchToWanted && (
+              <button
+                type="button"
+                onClick={onSwitchToWanted}
+                className="inline-flex items-center gap-1.5 px-4 py-2 border-2 border-amber-500 bg-amber-400 text-stone-950 text-xs font-mono font-bold shadow-[2px_2px_0px_#1C1917] hover:bg-amber-300 transition-colors cursor-pointer"
+              >
+                <span>Pasang di Papan Titip Cari (Lembar III)</span>
               </button>
             )}
           </div>
@@ -417,13 +427,13 @@ export const LiveCatalogSection: React.FC<LiveCatalogSectionProps> = ({
             return (
               <div
                 key={item.id}
-                className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col justify-between"
+                className="bg-[#FAF7F2] border-2 border-stone-800 shadow-[4px_4px_0px_#1C1917] flex flex-col justify-between transition-transform hover:-translate-y-1"
               >
                 <div>
                   {/* Image Container */}
                   <div
                     onClick={() => handleOpenDetail(item)}
-                    className="relative aspect-square bg-slate-100 overflow-hidden cursor-pointer group"
+                    className="relative aspect-square bg-[#ECE5D8] border-b-2 border-stone-800 overflow-hidden cursor-pointer group"
                   >
                     {coverPhoto ? (
                       <img
@@ -445,18 +455,18 @@ export const LiveCatalogSection: React.FC<LiveCatalogSectionProps> = ({
                     {/* Top Left Ticket ID, Status & Price Drop Badge */}
                     <div className="absolute top-3 left-3 flex flex-col gap-1.5 items-start">
                       <div className="flex items-center gap-1.5">
-                        <span className="bg-[#1B365D]/90 backdrop-blur-xs text-amber-300 px-2.5 py-1 rounded-lg font-mono font-bold text-[11px]">
+                        <span className="bg-[#1C1917]/90 backdrop-blur-xs text-amber-200 px-2.5 py-1 rounded-md font-mono font-bold text-[11px] border border-amber-900/40">
                           {item.id}
                         </span>
                         <span
-                          className={`px-2 py-0.5 rounded-lg text-[10px] font-extrabold backdrop-blur-xs shadow-xs ${
+                          className={`px-2 py-0.5 rounded-md text-[10px] font-bold backdrop-blur-xs ${
                             item.status === 'Booked (Di-DP)' || item.postStatus === 'Booked'
-                              ? 'bg-orange-600/95 text-white'
+                              ? 'bg-amber-800 text-amber-100'
                               : item.status === 'Sedang Dipajang (Live)'
-                              ? 'bg-emerald-600/95 text-white'
+                              ? 'bg-stone-900/90 text-stone-200 border border-stone-700/60'
                               : item.status === 'Diterima'
-                              ? 'bg-blue-600/95 text-white'
-                              : 'bg-amber-400/95 text-stone-950'
+                              ? 'bg-stone-800 text-stone-300'
+                              : 'bg-amber-300 text-stone-950 font-black'
                           }`}
                         >
                           {item.status === 'Booked (Di-DP)' || item.postStatus === 'Booked'
@@ -469,7 +479,7 @@ export const LiveCatalogSection: React.FC<LiveCatalogSectionProps> = ({
                         </span>
                       </div>
                       {hasPriceDrop && (
-                        <span className="bg-rose-600 text-white px-2.5 py-1 rounded-lg font-extrabold text-[10px] shadow-sm">
+                        <span className="bg-[#9A3412] text-amber-50 px-2 py-0.5 rounded-md font-bold text-[10px] border border-orange-950/40">
                           TURUN HARGA -{discountPct}%
                         </span>
                       )}
@@ -530,16 +540,16 @@ export const LiveCatalogSection: React.FC<LiveCatalogSectionProps> = ({
 
                     <h3
                       onClick={() => handleOpenDetail(item)}
-                      className="font-extrabold text-slate-900 text-sm sm:text-base line-clamp-1 hover:text-[#1B365D] cursor-pointer"
+                      className="font-serif-editorial font-bold text-stone-900 text-base sm:text-lg line-clamp-1 hover:text-[#C25E34] transition-colors cursor-pointer"
                     >
                       {item.itemNameAndBrand}
                     </h3>
 
-                    <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
+                    <p className="text-xs text-stone-600 line-clamp-2 leading-relaxed">
                       {item.descriptionAndFlaws}
                     </p>
 
-                    <div className="pt-1 flex items-center justify-between text-[11px] text-slate-500">
+                    <div className="pt-1 flex items-center justify-between text-[11px] text-stone-500">
                       <span>Kec. {item.kecamatan}</span>
                       <span>Hari ke-{tenor.elapsedDays}/30</span>
                     </div>
@@ -547,17 +557,17 @@ export const LiveCatalogSection: React.FC<LiveCatalogSectionProps> = ({
                 </div>
 
                 {/* Price & Action Footer */}
-                <div className="px-4 pb-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                <div className="px-4 pb-3.5 pt-3 border-t-2 border-stone-800 bg-[#ECE5D8] flex items-center justify-between gap-2">
                   <div>
-                    <span className="text-[10px] text-slate-400 block">
-                      {hasPriceDrop ? 'Harga Promo Price Drop' : 'Harga Etalase'}
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-stone-600 block">
+                      {hasPriceDrop ? '★ HARGA PRICE DROP' : 'HARGA ETALASE'}
                     </span>
                     {prevEstimates && (
-                      <span className="text-[11px] font-mono text-slate-400 line-through block tabular-nums">
+                      <span className="text-[11px] font-mono text-stone-500 line-through block tabular-nums">
                         {formatRupiah(prevEstimates.suggestedListingPrice)}
                       </span>
                     )}
-                    <strong className="text-sm sm:text-base font-mono font-black text-[#1B365D] tabular-nums">
+                    <strong className="text-base sm:text-lg font-mono font-black text-stone-950 tabular-nums">
                       {formatRupiah(estimates.suggestedListingPrice)}
                     </strong>
                   </div>
@@ -566,7 +576,7 @@ export const LiveCatalogSection: React.FC<LiveCatalogSectionProps> = ({
                     <button
                       type="button"
                       onClick={() => handleOpenDetail(item)}
-                      className="px-2.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
+                      className="px-2.5 py-1.5 bg-white hover:bg-stone-100 text-stone-900 text-xs font-mono font-bold transition-colors cursor-pointer border border-stone-800 shadow-[1px_1px_0px_#1C1917]"
                     >
                       Nego / COD
                     </button>
@@ -574,10 +584,10 @@ export const LiveCatalogSection: React.FC<LiveCatalogSectionProps> = ({
                       href={buyerWaUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-white text-xs font-bold transition-colors ${
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-bold transition-colors shadow-[2px_2px_0px_#C25E34] ${
                         item.status === 'Booked (Di-DP)' || item.postStatus === 'Booked'
-                          ? 'bg-orange-600 hover:bg-orange-700'
-                          : 'bg-emerald-600 hover:bg-emerald-700'
+                          ? 'bg-amber-800 text-amber-100 hover:bg-amber-900'
+                          : 'bg-stone-950 text-amber-300 hover:bg-stone-800'
                       }`}
                     >
                       <MessageCircle className="w-3.5 h-3.5" />

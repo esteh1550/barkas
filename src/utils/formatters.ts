@@ -50,6 +50,8 @@ export interface CommissionBreakdown {
  * 1. < Rp100.000: Flat fee Rp10.000 / barang
  * 2. Rp100.000 – Rp1.000.000: Komisi 12% (rentang 10% - 15%)
  * 3. > Rp1.000.000: Komisi 8% (rentang 8% - 10%, menarik untuk barang brand / high value)
+ * 
+ * Harga tayang dibulatkan ke kelipatan Rp 5.000 terdekat agar rapi, menarik, dan memudahkan transaksi.
  */
 export const calculateListingEstimates = (nettPrice: number): CommissionBreakdown => {
   if (!nettPrice || nettPrice <= 0) {
@@ -64,30 +66,37 @@ export const calculateListingEstimates = (nettPrice: number): CommissionBreakdow
     };
   }
 
-  let estimatedFee = 0;
+  let rawEstimatedFee = 0;
   let tierName = '';
   let rateDescription = '';
 
   if (nettPrice < 100000) {
     // 1. Barang < Rp100.000: Flat fee Rp10.000 / barang
-    estimatedFee = 10000;
+    rawEstimatedFee = 10000;
     tierName = 'Tier Terjangkau (< Rp 100rb)';
     rateDescription = 'Flat Fee Rp 10.000';
   } else if (nettPrice <= 1000000) {
     // 2. Barang Rp100.000 – Rp1.000.000: Komisi 12% (10% – 15%)
     const rate = 0.12;
-    estimatedFee = Math.round(nettPrice * rate);
+    rawEstimatedFee = Math.round(nettPrice * rate);
     tierName = 'Tier Menengah (Rp 100rb – Rp 1jt)';
     rateDescription = 'Komisi 12%';
   } else {
     // 3. Barang > Rp1.000.000: Komisi 8% (8% – 10%, menarik bagi pemegang brand/high-value)
     const rate = 0.08;
-    estimatedFee = Math.round(nettPrice * rate);
+    rawEstimatedFee = Math.round(nettPrice * rate);
     tierName = 'Tier Premium & Brand (> Rp 1jt)';
     rateDescription = 'Komisi Khusus 8%';
   }
 
-  const suggestedListingPrice = nettPrice + estimatedFee;
+  // Bulatkan harga tayang ke atas kelipatan 5.000 (minimum nettPrice + 5.000)
+  const rawListingPrice = nettPrice + rawEstimatedFee;
+  const suggestedListingPrice = Math.max(
+    nettPrice + 5000,
+    Math.ceil(rawListingPrice / 5000) * 5000
+  );
+  // Sesuaikan nilai komisi agar penjumlahannya tetap 100% presisi dan transparan
+  const estimatedFee = suggestedListingPrice - nettPrice;
 
   return {
     nettPrice,

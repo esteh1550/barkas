@@ -10,9 +10,10 @@ import {
 import { ADMIN_CONTACT } from '../types/consignment';
 import { PWAInstallButton } from './PWAInstallButton';
 
-export type UIThemeId = 'forest' | 'terracotta' | 'obsidian' | 'navy';
+export type UIThemeId = 'editorial' | 'forest' | 'terracotta' | 'obsidian' | 'navy';
 
 const UI_THEMES: { id: UIThemeId; label: string; dot: string }[] = [
+  { id: 'editorial', label: 'Warm Editorial', dot: 'bg-[#27211E] border-[#C25E34]' },
   { id: 'forest', label: 'Botanical Forest', dot: 'bg-[#0F291E] border-amber-400' },
   { id: 'terracotta', label: 'Terracotta Vintage', dot: 'bg-[#431407] border-orange-400' },
   { id: 'obsidian', label: 'Obsidian Dark', dot: 'bg-slate-950 border-amber-400' },
@@ -39,13 +40,13 @@ export const Header: React.FC<HeaderProps> = ({
   const [activeTheme, setActiveTheme] = useState<UIThemeId>(() => {
     try {
       const saved = localStorage.getItem(THEME_STORAGE_KEY) as UIThemeId | null;
-      if (saved && ['forest', 'terracotta', 'obsidian', 'navy'].includes(saved)) {
+      if (saved && ['editorial', 'forest', 'terracotta', 'obsidian', 'navy'].includes(saved)) {
         return saved;
       }
     } catch {
       // ignore
     }
-    return 'forest';
+    return 'editorial';
   });
 
   useEffect(() => {
@@ -58,49 +59,44 @@ export const Header: React.FC<HeaderProps> = ({
   }, [activeTheme]);
 
   return (
-    <header className="relative bg-[#1B365D] text-white shadow-xl overflow-hidden border-b-4 border-amber-400 transition-colors duration-300">
-      {/* Subtle architectural grid texture */}
-      <div className="absolute inset-0 opacity-10 pointer-events-none bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:20px_20px]"></div>
+    <header className="relative bg-[#F4EFE6] text-stone-900 border-b-2 border-stone-900 transition-colors duration-300">
+      {/* Top Gazette Dateline Header */}
+      <div className="border-b border-stone-400/80 bg-[#ECE5D8] px-4 py-1.5 text-[11px] font-mono tracking-wider text-stone-700">
+        <div className="max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-3">
+            <span className="font-bold uppercase tracking-widest text-stone-900">
+              KAB. MAJALENGKA, JAWA BARAT
+            </span>
+            <span className="hidden sm:inline text-stone-400">|</span>
+            <span className="hidden sm:inline">WARTA TITIP JUAL & ARSIP PRELOVED RESMI</span>
+            <span className="hidden md:inline text-stone-400">|</span>
+            <span className="hidden md:inline">EDISI 2026</span>
+          </div>
 
-      {/* Warm atmospheric glow */}
-      <div className="absolute -top-28 -right-24 w-96 h-96 bg-amber-400/15 rounded-full blur-3xl pointer-events-none"></div>
-      <div className="absolute -bottom-28 -left-24 w-80 h-80 bg-emerald-400/15 rounded-full blur-3xl pointer-events-none"></div>
-
-      <div className="max-w-4xl mx-auto px-4 py-6 sm:px-6 sm:py-8 relative z-10">
-        {/* Top utility & theme switcher bar */}
-        <div className="flex flex-wrap items-center justify-between gap-2.5 mb-5 pb-3.5 border-b border-white/15 text-xs">
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/25 backdrop-blur-md border border-amber-400/35 text-amber-200">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span className="font-bold tracking-wide">Curated Consignment Hub • Majalengka</span>
-            </div>
-
-            {/* Interactive UI Theme Selector */}
-            <div className="inline-flex items-center gap-1 bg-black/25 p-1 rounded-xl border border-white/15">
-              <span className="px-1.5 text-[10px] text-amber-200/90 font-bold flex items-center gap-1">
-                <Palette className="w-3 h-3 text-amber-300" />
-                <span className="hidden md:inline">Tema:</span>
+          <div className="flex items-center gap-2 ml-auto">
+            {/* Theme switcher */}
+            <div className="inline-flex items-center gap-1 bg-[#E4DDD0] px-2 py-0.5 border border-stone-600">
+              <span className="text-[10px] text-stone-800 font-bold flex items-center gap-1">
+                <Palette className="w-3 h-3 text-stone-800" />
+                <span className="hidden lg:inline">Tema:</span>
               </span>
               {UI_THEMES.map((t) => (
                 <button
                   key={t.id}
                   type="button"
                   onClick={() => setActiveTheme(t.id)}
-                  className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  className={`px-1.5 py-0.5 border text-[10px] font-bold font-mono transition-all cursor-pointer ${
                     activeTheme === t.id
-                      ? 'bg-amber-400 text-stone-950 shadow-xs'
-                      : 'text-white/75 hover:text-white hover:bg-white/10'
+                      ? 'bg-stone-900 text-stone-50 border-stone-900 shadow-[1px_1px_0px_#1C1917]'
+                      : 'border-transparent text-stone-700 hover:text-stone-950 hover:bg-stone-300 hover:border-stone-400'
                   }`}
                   title={`Ganti ke tema ${t.label}`}
                 >
-                  <span className={`w-2 h-2 rounded-full border ${t.dot}`} />
-                  <span className="hidden sm:inline">{t.label.split(' ')[0]}</span>
+                  {t.label.split(' ')[0]}
                 </button>
               ))}
             </div>
-          </div>
 
-          <div className="flex items-center gap-2 ml-auto">
             <PWAInstallButton />
 
             <a
@@ -109,107 +105,115 @@ export const Header: React.FC<HeaderProps> = ({
               )}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/25 hover:bg-emerald-500/35 text-emerald-100 border border-emerald-400/40 transition-all text-xs font-bold"
+              className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-stone-900 hover:bg-stone-800 text-amber-200 text-[11px] font-bold transition-colors cursor-pointer"
               title="Hubungi Admin Esteh via WhatsApp"
             >
-              <MessageCircle className="w-3.5 h-3.5 text-emerald-300" />
+              <MessageCircle className="w-3 h-3 text-amber-300" />
               <span>Admin Esteh</span>
             </a>
 
             <button
               type="button"
               onClick={onOpenFAQ}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-all text-xs font-bold cursor-pointer"
+              className="inline-flex items-center gap-1 px-2 py-0.5 bg-stone-200 hover:bg-stone-300 text-stone-900 border border-stone-400 text-[11px] font-bold cursor-pointer"
               title="Panduan & Aturan Titip Jual"
             >
-              <HelpCircle className="w-3.5 h-3.5 text-amber-300" />
-              <span>Panduan SOP</span>
+              <HelpCircle className="w-3 h-3 text-stone-700" />
+              <span className="hidden sm:inline">SOP Titip</span>
             </button>
           </div>
         </div>
+      </div>
 
-        {/* Editorial Brand Identity & Hero Masthead */}
-        <div className="text-center sm:text-left sm:flex sm:items-end sm:justify-between gap-6">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-300 via-amber-400 to-amber-600 flex items-center justify-center text-stone-950 font-serif-accent font-black text-2xl shadow-lg border-2 border-amber-200">
-                B
-              </div>
-              <div className="text-left">
-                <span className="block text-[10px] font-mono uppercase tracking-[0.22em] text-amber-300/90 font-bold">
-                  EST. MAJALENGKA • PRELOVED ARCHIVE
+      {/* Main Editorial Broadside Masthead */}
+      <div className="max-w-5xl mx-auto px-4 pt-6 pb-4 sm:pt-8 sm:pb-6">
+        <div className="border-b-4 border-double border-stone-900 pb-5">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-left">
+            {/* Left Editorial Stamp */}
+            <div className="hidden lg:flex flex-col justify-center items-center w-32 p-2 border-2 border-stone-800 bg-[#ECE5D8] text-center shrink-0">
+              <span className="text-[9px] font-mono font-bold tracking-widest text-stone-600 block uppercase">
+                KONSINYASI RESMI
+              </span>
+              <span className="text-xl font-serif-editorial font-bold text-stone-900 block my-0.5">
+                100% NETT
+              </span>
+              <span className="text-[8.5px] text-stone-600 uppercase tracking-tight block">
+                DANA UTUH KE PENITIP
+              </span>
+            </div>
+
+            {/* Center Gazette Title */}
+            <div className="flex-1 space-y-1">
+              <div className="flex items-center justify-center md:justify-start gap-2">
+                <span className="text-[10px] font-mono font-bold uppercase tracking-[0.3em] text-[#C25E34]">
+                  ★ JURNAL KURASI BARANG PRELOVED PILIHAN ★
                 </span>
-                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
-                  info.barkasmajalengka
-                </h1>
               </div>
+              <h1 className="text-3xl sm:text-5xl lg:text-6xl font-serif-editorial font-extrabold tracking-tight text-stone-950 uppercase leading-none">
+                INFO BARKAS MAJALENGKA
+              </h1>
+              <p className="text-stone-700 font-serif-editorial italic text-sm sm:text-base pt-1 max-w-2xl">
+                "Warta Penghubung Titip Jual & Etalase Barang Seken Berkualitas Warga Kabupaten Majalengka — Terverifikasi, Transparan, Bebas Tipu-Tipu"
+              </p>
             </div>
 
-            <p className="text-amber-200 font-serif-accent italic text-base sm:text-lg pt-0.5">
-              Ruang Kurasi & Titip Jual Barang Bekas Berkualitas
-            </p>
-
-            <p className="text-stone-200/90 text-xs sm:text-sm max-w-xl leading-relaxed">
-              Solusi jual cepat & terkurasi untuk warga Kabupaten Majalengka. Daftarkan barang terbaik Anda atau jelajahi etalase stok siap pakai bersama <strong>Admin Esteh</strong>.
-            </p>
-          </div>
-
-          {/* Editorial Key Metrics / Guarantees */}
-          <div className="mt-4 sm:mt-0 flex sm:flex-col gap-2 justify-center sm:items-end shrink-0">
-            <div className="inline-flex items-center px-3.5 py-2 rounded-xl bg-black/25 backdrop-blur-xs border border-amber-400/30 text-xs text-amber-100 font-semibold">
-              <span>100% Harga Nett Utuh ke Penitip</span>
-            </div>
-            <div className="inline-flex items-center px-3.5 py-2 rounded-xl bg-black/25 backdrop-blur-xs border border-white/15 text-xs text-stone-200">
-              <span>Rekber & COD Resmi Majalengka</span>
+            {/* Right Editorial Stamp */}
+            <div className="hidden lg:flex flex-col justify-center items-center w-36 p-2 border-2 border-stone-800 bg-[#ECE5D8] text-center shrink-0">
+              <span className="text-[9px] font-mono font-bold tracking-widest text-stone-600 block uppercase">
+                TITIK TEMU COD
+              </span>
+              <span className="text-xs font-serif-editorial font-bold text-stone-900 block my-0.5">
+                ALUN-ALUN & GGM
+              </span>
+              <span className="text-[8.5px] text-stone-600 uppercase tracking-tight block">
+                26 KECAMATAN TERJANGKAU
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Quick Mode Navigation Bar inside Masthead */}
+        {/* Newspaper Section Navigation Bar */}
         {onSelectTab && (
-          <div className="mt-5 pt-4 border-t border-white/15 flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => onSelectTab('form')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'form'
-                  ? 'bg-amber-400 text-stone-950 shadow-sm'
-                  : 'bg-white/10 text-white hover:bg-white/20 border border-white/15'
-              }`}
-            >
-              <Tag className="w-3.5 h-3.5" />
-              <span>Formulir Titip Jual</span>
-            </button>
-
+          <nav className="mt-3 pt-2 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs font-mono font-bold">
             <button
               type="button"
               onClick={() => onSelectTab('catalog')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`p-2.5 text-center transition-all flex items-center justify-center gap-2 border-2 cursor-pointer ${
                 activeTab === 'catalog'
-                  ? 'bg-amber-400 text-stone-950 shadow-sm'
-                  : 'bg-white/10 text-white hover:bg-white/20 border border-white/15'
+                  ? 'bg-stone-900 text-stone-50 border-stone-900 shadow-[3px_3px_0px_#C25E34]'
+                  : 'bg-white text-stone-800 border-stone-400 hover:border-stone-800 hover:bg-[#FAF7F2]'
               }`}
             >
-              <ShoppingBag className="w-3.5 h-3.5" />
-              <span>Etalase Barang Live ({liveCount})</span>
+              <ShoppingBag className="w-3.5 h-3.5 text-amber-500" />
+              <span>LEMBAR I: ETALASE LIVE ({liveCount})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onSelectTab('form')}
+              className={`p-2.5 text-center transition-all flex items-center justify-center gap-2 border-2 cursor-pointer ${
+                activeTab === 'form'
+                  ? 'bg-stone-900 text-stone-50 border-stone-900 shadow-[3px_3px_0px_#C25E34]'
+                  : 'bg-white text-stone-800 border-stone-400 hover:border-stone-800 hover:bg-[#FAF7F2]'
+              }`}
+            >
+              <Tag className="w-3.5 h-3.5 text-amber-500" />
+              <span>LEMBAR II: FORMULIR TITIP JUAL</span>
             </button>
 
             <button
               type="button"
               onClick={() => onSelectTab('wanted')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`p-2.5 text-center transition-all flex items-center justify-center gap-2 border-2 cursor-pointer ${
                 activeTab === 'wanted'
-                  ? 'bg-amber-400 text-stone-950 shadow-sm'
-                  : 'bg-white/10 text-white hover:bg-white/20 border border-amber-400/40'
+                  ? 'bg-stone-900 text-stone-50 border-stone-900 shadow-[3px_3px_0px_#C25E34]'
+                  : 'bg-white text-stone-800 border-stone-400 hover:border-stone-800 hover:bg-[#FAF7F2]'
               }`}
             >
-              <Search className="w-3.5 h-3.5 text-amber-300" />
-              <span>Titip Cari Barang ({wantedCount})</span>
-              <span className="px-1.5 py-0.2 rounded-md bg-amber-300 text-stone-950 text-[10px] font-black">
-                WANTED
-              </span>
+              <Search className="w-3.5 h-3.5 text-amber-500" />
+              <span>LEMBAR III: WARTA CARI BARANG ({wantedCount})</span>
             </button>
-          </div>
+          </nav>
         )}
       </div>
     </header>

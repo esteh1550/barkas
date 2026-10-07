@@ -172,17 +172,25 @@ export default function App() {
   const [hasRestoredDraft, setHasRestoredDraft] = useState(false);
 
   // Public Ticket Status Tracker State
-  const [ticketSearchQuery, setTicketSearchQuery] = useState('');
+  const [ticketSearchQuery, setTicketSearchQuery] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const ticketParam = params.get('ticket') || params.get('lacak');
+      if (ticketParam) return ticketParam.startsWith('#') ? ticketParam : `#${ticketParam}`;
+    }
+    return '';
+  });
   const [trackedTicket, setTrackedTicket] = useState<ConsignmentItem | null>(null);
   const [isSearchingTicket, setIsSearchingTicket] = useState(false);
   const [ticketSearchError, setTicketSearchError] = useState<string | null>(null);
-  const [publicActiveTab, setPublicActiveTab] = useState<'form' | 'catalog' | 'wanted'>(() => {
+  const [publicActiveTab, setPublicActiveTab] = useState<'catalog' | 'form' | 'wanted'>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
-      if (params.get('item')) return 'catalog';
+      if (params.get('tab') === 'form') return 'form';
       if (params.get('tab') === 'wanted') return 'wanted';
+      if (params.get('tab') === 'catalog' || params.get('item')) return 'catalog';
     }
-    return 'form';
+    return 'catalog';
   });
   const [initialCatalogTicketId] = useState<string | null>(() => {
     if (typeof window !== 'undefined') {
@@ -301,6 +309,44 @@ export default function App() {
     } catch {
       // ignore sessionStorage errors
     }
+  }, []);
+
+  // Auto-track ticket if ?ticket= or ?lacak= was passed in URL (e.g. from QR scan)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const ticketParam = params.get('ticket') || params.get('lacak');
+    if (!ticketParam) return;
+
+    const normalized = ticketParam.startsWith('#') ? ticketParam.toUpperCase() : `#${ticketParam.toUpperCase()}`;
+    setIsSearchingTicket(true);
+    getSubmissionByTicketId(normalized)
+      .then((res) => {
+        if (res) {
+          setTrackedTicket(res);
+        } else {
+          const savedLocal = localStorage.getItem(STORAGE_KEY);
+          if (savedLocal) {
+            const parsed: ConsignmentItem[] = JSON.parse(savedLocal);
+            const found = parsed.find(
+              (i) =>
+                i.id.toUpperCase() === normalized ||
+                i.id.toUpperCase() === ticketParam.toUpperCase()
+            );
+            if (found) {
+              setTrackedTicket(found);
+              return;
+            }
+          }
+          setTicketSearchError(`Tiket "${normalized}" tidak ditemukan. Pastikan kode tiket sudah benar.`);
+        }
+      })
+      .catch(() => {
+        setTicketSearchError('Gagal memeriksa status tiket. Silakan coba lagi.');
+      })
+      .finally(() => {
+        setIsSearchingTicket(false);
+      });
   }, []);
 
   // Auto-save form text draft to sessionStorage whenever user types
@@ -958,82 +1004,46 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-6 sm:py-8">
-        {/* Top Mode Switcher: Formulir Titip Jual vs Etalase Barang Live vs Titip Cari Barang */}
-        <div className="mb-5 p-1.5 rounded-2xl bg-slate-200/80 border border-slate-300/80 grid grid-cols-3 gap-1.5">
-          <button
-            type="button"
-            onClick={() => setPublicActiveTab('form')}
-            className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-              publicActiveTab === 'form'
-                ? 'bg-[#1B365D] text-white shadow-xs'
-                : 'text-slate-700 hover:text-[#1B365D]'
-            }`}
-          >
-            <Tag className="w-4 h-4 text-amber-400 shrink-0" />
-            <span className="truncate">Formulir Titip Jual</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setPublicActiveTab('catalog')}
-            className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-              publicActiveTab === 'catalog'
-                ? 'bg-[#1B365D] text-white shadow-xs'
-                : 'text-slate-700 hover:text-[#1B365D]'
-            }`}
-          >
-            <ShoppingBag className="w-4 h-4 text-amber-400 shrink-0" />
-            <span className="truncate">Etalase Live ({effectiveLiveCatalogItems.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setPublicActiveTab('wanted')}
-            className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-              publicActiveTab === 'wanted'
-                ? 'bg-[#1B365D] text-white shadow-xs'
-                : 'text-slate-700 hover:text-[#1B365D]'
-            }`}
-          >
-            <Search className="w-4 h-4 text-amber-400 shrink-0" />
-            <span className="truncate">Titip Cari ({wantedRequests.length})</span>
-          </button>
-        </div>
-
-        {/* Intro banner */}
-        <div className="mb-6 p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div>
-            <h2 className="text-sm sm:text-base font-bold text-slate-800">
+        {/* Intro Gazette Bulletin Notice */}
+        <div className="mb-6 p-4 sm:p-5 bg-[#FAF7F2] border-2 border-stone-800 shadow-[4px_4px_0px_#1C1917] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="space-y-1">
+            <span className="text-[10px] font-mono uppercase tracking-widest text-[#C25E34] font-bold block">
+              ★ MAKLUMAT RESMI WARGA MAJALENGKA ★
+            </span>
+            <h2 className="text-base sm:text-xl font-serif-editorial font-bold text-stone-950">
               Punya Barang Bagus Jarang Dipakai?
             </h2>
-            <p className="text-xs text-slate-500">
-              Titip jualkan di <strong>info.barkasmajalengka</strong>. Dapatkan uang tunai tanpa repot COD!
+            <p className="text-xs text-stone-700 max-w-xl leading-relaxed">
+              Titip jualkan di <strong>info.barkasmajalengka</strong>. Dapatkan dana bersih utuh 100% tanpa repot COD, tanpa risiko penipuan online.
             </p>
           </div>
 
           <button
             type="button"
             onClick={() => setIsFAQOpen(true)}
-            className="inline-flex items-center gap-1 text-xs font-semibold text-[#1B365D] hover:text-amber-600 bg-slate-50 hover:bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 text-xs font-mono font-bold text-stone-900 bg-[#ECE5D8] hover:bg-stone-300 px-3.5 py-2 border-2 border-stone-800 shadow-[2px_2px_0px_#1C1917] transition-colors cursor-pointer shrink-0"
           >
-            <span>Cara Kerja & Tenor</span>
+            <span>BACA KETENTUAN & SOP</span>
           </button>
         </div>
 
-        {/* Public Ticket Status Tracker (Privacy-Safe Lookup by Ticket ID) */}
-        <div className="mb-6 bg-white rounded-3xl p-4 sm:p-5 border border-slate-200 shadow-xs space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        {/* Public Ticket Status Tracker (Archival Ledger Lookup) */}
+        <div className="mb-6 bg-[#FAF7F2] border-2 border-stone-800 shadow-[4px_4px_0px_#1C1917] p-5 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b-2 border-stone-800 pb-3">
             <div>
-              <h3 className="text-xs sm:text-sm font-extrabold text-[#1B365D]">
-                Cek Status Tiket & Sisa Masa Titip 30 Hari
+              <span className="text-[10px] font-mono uppercase tracking-widest text-stone-600 block">
+                LEMBAR PEMERIKSAAN MANDIRI
+              </span>
+              <h3 className="text-base sm:text-lg font-serif-editorial font-bold text-stone-950">
+                Pengecekan Arsip Tiket & Sisa Masa Titip 30 Hari
               </h3>
-              <p className="text-[11px] text-slate-500">
-                Sudah daftar? Masukkan Kode Tiket Anda untuk memantau status kurasi & penjualan secara real-time.
-              </p>
             </div>
+            <span className="text-[11px] font-mono text-stone-600">
+              Update Real-Time 24 Jam
+            </span>
           </div>
 
-          <form onSubmit={handleTrackTicket} className="flex flex-col sm:flex-row gap-2">
+          <form onSubmit={handleTrackTicket} className="flex flex-col sm:flex-row gap-2 pt-1">
             <input
               type="text"
               value={ticketSearchQuery}
@@ -1041,18 +1051,18 @@ export default function App() {
                 setTicketSearchQuery(e.target.value);
                 if (ticketSearchError) setTicketSearchError(null);
               }}
-              placeholder="Masukkan Kode Tiket (contoh: #BM-2026-4821)"
-              className="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:border-[#1B365D] focus:outline-hidden text-xs sm:text-sm font-mono uppercase"
+              placeholder="Ketik Kode Tiket (Contoh: #BM-2026-4821)"
+              className="flex-1 px-3.5 py-2.5 border-2 border-stone-400 bg-white focus:border-stone-900 focus:outline-hidden text-xs sm:text-sm font-mono uppercase shadow-[2px_2px_0px_rgba(0,0,0,0.06)]"
             />
             <button
               type="submit"
               disabled={isSearchingTicket}
-              className="px-4 py-2.5 rounded-xl bg-[#1B365D] hover:bg-[#24477A] text-white font-bold text-xs sm:text-sm transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60"
+              className="px-5 py-2.5 bg-stone-900 hover:bg-stone-800 text-amber-200 font-mono font-bold text-xs sm:text-sm transition-colors border-2 border-stone-900 shadow-[2px_2px_0px_#C25E34] flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60"
             >
               {isSearchingTicket ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
-                  <span>Mencari...</span>
+                  <span>Memeriksa Arsip...</span>
                 </>
               ) : (
                 <>
@@ -1064,8 +1074,8 @@ export default function App() {
           </form>
 
           {ticketSearchError && (
-            <p className="text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2 flex items-center gap-1.5 font-medium">
-              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+            <p className="text-xs text-rose-700 bg-rose-50 border-2 border-rose-400 px-3.5 py-2.5 flex items-center gap-2 font-mono font-bold shadow-[2px_2px_0px_#E11D48]">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
               <span>{ticketSearchError}</span>
             </p>
           )}
@@ -1075,33 +1085,33 @@ export default function App() {
             const estimates = calculateListingEstimates(trackedTicket.nettPrice);
             const progressPercent = Math.min(100, Math.round((tenor.elapsedDays / 30) * 100));
             return (
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3 animate-in fade-in duration-150">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2.5">
-                  <div className="flex items-center gap-2">
-                    <span className="px-2.5 py-1 rounded-lg bg-[#1B365D] text-amber-400 font-mono font-black text-xs">
+              <div className="p-5 bg-[#ECE5D8] border-2 border-stone-800 shadow-[3px_3px_0px_#1C1917] space-y-4 animate-in fade-in duration-150">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b-2 border-stone-800 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <span className="px-3 py-1 bg-stone-900 text-amber-300 font-mono font-bold text-xs border border-stone-800 shadow-[2px_2px_0px_#C25E34]">
                       {trackedTicket.id}
                     </span>
                     <div>
-                      <h4 className="font-extrabold text-slate-900 text-xs sm:text-sm">
+                      <h4 className="font-serif-editorial font-bold text-stone-950 text-sm sm:text-base">
                         {trackedTicket.itemNameAndBrand}
                       </h4>
-                      <span className="text-[11px] text-slate-500">
+                      <span className="text-[11px] font-mono text-stone-600">
                         Kategori: {trackedTicket.category} • Size: {trackedTicket.size || 'All Size'}
                       </span>
                     </div>
                   </div>
 
                   <span
-                    className={`px-3 py-1 rounded-full text-xs font-extrabold border ${
+                    className={`px-3 py-1 text-xs font-mono font-bold border-2 ${
                       trackedTicket.status === 'Terjual' || trackedTicket.status === 'Selesai & Dicairkan'
-                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                        ? 'bg-emerald-100 text-emerald-950 border-emerald-700'
                         : trackedTicket.status === 'Sedang Dipajang (Live)'
-                        ? 'bg-blue-100 text-blue-800 border-blue-300'
+                        ? 'bg-amber-300 text-stone-950 border-stone-900 shadow-[2px_2px_0px_#1C1917]'
                         : trackedTicket.status === 'Diterima'
-                        ? 'bg-purple-100 text-purple-800 border-purple-300'
+                        ? 'bg-purple-100 text-purple-950 border-purple-700'
                         : trackedTicket.status === 'Ditolak'
-                        ? 'bg-rose-100 text-rose-800 border-rose-300'
-                        : 'bg-amber-100 text-amber-900 border-amber-300'
+                        ? 'bg-rose-100 text-rose-950 border-rose-700'
+                        : 'bg-amber-100 text-amber-950 border-amber-600'
                     }`}
                   >
                     {trackedTicket.status}
@@ -1109,34 +1119,34 @@ export default function App() {
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
-                  <div className="p-2.5 bg-white rounded-xl border border-slate-200/80">
-                    <span className="text-[10px] text-slate-400 block">Harga Nett Penitip</span>
-                    <strong className="text-slate-800 font-mono">{formatRupiah(trackedTicket.nettPrice)}</strong>
+                  <div className="p-3 bg-white border border-stone-800 shadow-[2px_2px_0px_rgba(0,0,0,0.06)]">
+                    <span className="text-[10px] font-mono text-stone-500 uppercase tracking-wider block">Harga Nett Penitip</span>
+                    <strong className="text-stone-950 font-mono text-sm">{formatRupiah(trackedTicket.nettPrice)}</strong>
                   </div>
-                  <div className="p-2.5 bg-white rounded-xl border border-slate-200/80">
-                    <span className="text-[10px] text-slate-400 block">Est. Harga Tayang</span>
-                    <strong className="text-[#1B365D] font-mono">± {formatRupiah(estimates.suggestedListingPrice)}</strong>
+                  <div className="p-3 bg-white border border-stone-800 shadow-[2px_2px_0px_rgba(0,0,0,0.06)]">
+                    <span className="text-[10px] font-mono text-stone-500 uppercase tracking-wider block">Est. Harga Tayang</span>
+                    <strong className="text-[#C25E34] font-mono text-sm">± {formatRupiah(estimates.suggestedListingPrice)}</strong>
                   </div>
-                  <div className="p-2.5 bg-white rounded-xl border border-slate-200/80 col-span-2 sm:col-span-1">
-                    <span className="text-[10px] text-slate-400 block">Status Masa Titip (Tenor)</span>
-                    <strong className="text-slate-800 flex items-center gap-1">
+                  <div className="p-3 bg-white border border-stone-800 shadow-[2px_2px_0px_rgba(0,0,0,0.06)] col-span-2 sm:col-span-1">
+                    <span className="text-[10px] font-mono text-stone-500 uppercase tracking-wider block">Status Masa Titip</span>
+                    <strong className="text-stone-900 flex items-center gap-1 font-mono text-xs">
                       <Clock className="w-3.5 h-3.5 text-amber-600" />
-                      <span>Hari ke-{tenor.elapsedDays} dari 30 Hari</span>
+                      <span>Hari ke-{tenor.elapsedDays} / 30 Hari</span>
                     </strong>
                   </div>
                 </div>
 
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between text-[11px] text-slate-500">
-                    <span>Progres Masa Titip (Sisa {tenor.remainingDays} hari)</span>
-                    <span className="font-semibold text-slate-700">
-                      Evaluasi H-20: {tenor.day20Date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} • Batas H-30: {tenor.day30Date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                <div className="space-y-1.5 bg-white p-3 border border-stone-800">
+                  <div className="flex items-center justify-between text-[11px] font-mono text-stone-700">
+                    <span>Sisa Masa Titip: <strong>{tenor.remainingDays} hari</strong></span>
+                    <span className="text-stone-600">
+                      Evaluasi: {tenor.day20Date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} • Batas: {tenor.day30Date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
                     </span>
                   </div>
-                  <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                  <div className="w-full h-3 bg-stone-200 border border-stone-700 overflow-hidden">
                     <div
-                      className={`h-full rounded-full transition-all ${
-                        tenor.isExpired ? 'bg-rose-500' : tenor.isPriceDropPeriod ? 'bg-amber-500' : 'bg-emerald-500'
+                      className={`h-full transition-all ${
+                        tenor.isExpired ? 'bg-rose-600' : tenor.isPriceDropPeriod ? 'bg-amber-500' : 'bg-emerald-600'
                       }`}
                       style={{ width: `${progressPercent}%` }}
                     />
@@ -1147,9 +1157,9 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => setTrackedTicket(null)}
-                    className="text-[11px] text-slate-400 hover:text-slate-600 font-semibold cursor-pointer"
+                    className="text-xs font-mono text-stone-600 hover:text-stone-950 font-bold underline cursor-pointer"
                   >
-                    Tutup Detail Tiket
+                    [Tutup Detail Arsip]
                   </button>
                   <a
                     href={`https://wa.me/${ADMIN_CONTACT.whatsappInternational}?text=${encodeURIComponent(
@@ -1157,9 +1167,9 @@ export default function App() {
                     )}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-stone-900 hover:bg-stone-800 text-amber-200 text-xs font-mono font-bold border-2 border-stone-900 shadow-[2px_2px_0px_#C25E34] transition-colors"
                   >
-                    <MessageCircle className="w-3.5 h-3.5" />
+                    <MessageCircle className="w-3.5 h-3.5 text-amber-400" />
                     <span>Tanya Admin Esteh (WA)</span>
                   </a>
                 </div>
@@ -1212,10 +1222,32 @@ export default function App() {
           />
         ) : (
           <>
+            {/* Lembar II Headline Header */}
+            <div className="mb-6 p-4 sm:p-5 bg-stone-900 text-stone-50 border-2 border-stone-900 shadow-[4px_4px_0px_#C25E34] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="space-y-1">
+                <span className="text-[10px] font-mono uppercase tracking-widest text-amber-300 font-bold block">
+                  LEMBAR II · BLANGKO RESMI PENDAFTARAN TITIP JUAL KONSINYASI
+                </span>
+                <h2 className="text-base sm:text-xl font-serif-editorial font-bold text-stone-50">
+                  Formulir Pengajuan Titip Jual
+                </h2>
+                <p className="text-xs text-stone-300 max-w-xl leading-relaxed">
+                  Isi data barang & kontak Anda dengan lengkap. Barang yang disetujui akan dipajang di <strong>LEMBAR I (Etalase Live)</strong>.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPublicActiveTab('catalog')}
+                className="inline-flex items-center gap-1.5 text-xs font-mono font-bold text-stone-900 bg-amber-400 hover:bg-amber-300 px-3.5 py-2 border-2 border-stone-900 shadow-[2px_2px_0px_#1C1917] transition-colors cursor-pointer shrink-0"
+              >
+                <span>LIHAT LEMBAR I (ETALASE)</span>
+              </button>
+            </div>
+
             {/* Interactive Commission & Listing Price Simulator */}
             <CommissionSimulator
               onApplyNettPrice={(nettAmount) => {
-                setNettPriceRaw(nettAmount.toLocaleString('id-ID'));
+                setNettPriceRaw(String(nettAmount));
                 if (errors.nettPrice) {
                   setErrors({ ...errors, nettPrice: '' });
                 }
@@ -1250,18 +1282,18 @@ export default function App() {
           {/* SECTION 1: DATA DIRI PENITIP */}
           <div 
             data-field="fullName"
-            className="bg-white rounded-3xl p-5 sm:p-7 border border-slate-200 shadow-xs transition-all hover:shadow-md"
+            className="bg-[#FAF7F2] border-2 border-stone-800 shadow-[4px_4px_0px_#1C1917] p-6 sm:p-8"
           >
-            <div className="flex items-center gap-3 pb-4 mb-5 border-b border-slate-100">
-              <div className="w-9 h-9 rounded-xl bg-[#1B365D] text-white flex items-center justify-center font-bold text-sm shadow-xs">
-                1
+            <div className="flex items-center gap-3 pb-4 mb-5 border-b-2 border-stone-800">
+              <div className="w-8 h-8 bg-stone-900 text-stone-50 border border-stone-800 flex items-center justify-center font-mono font-bold text-sm">
+                01
               </div>
               <div>
-                <h2 className="text-base sm:text-lg font-bold text-[#1B365D] flex items-center gap-2">
-                  <span>Data Diri Penitip</span>
+                <h2 className="text-base sm:text-xl font-serif-editorial font-bold text-stone-950 uppercase tracking-tight">
+                  PASAL 01. IDENTITAS PENITIP & ALAMAT DOMISILI
                 </h2>
-                <p className="text-xs text-slate-400">
-                  Informasi kontak Anda dijamin aman & hanya digunakan untuk konfirmasi titip jual
+                <p className="text-xs text-stone-600 font-serif-editorial italic">
+                  Data kontak resmi untuk konfirmasi kurasi fisik & verifikasi pencairan dana
                 </p>
               </div>
             </div>
@@ -1269,11 +1301,11 @@ export default function App() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Nama Lengkap */}
               <div className="sm:col-span-1">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Nama Lengkap <span className="text-rose-500">*</span>
+                <label className="block text-xs font-bold text-stone-800 uppercase tracking-wider mb-1.5 font-mono">
+                  Nama Lengkap <span className="text-[#C25E34]">*</span>
                 </label>
                 <div className="relative">
-                  <UserIcon className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
+                  <UserIcon className="w-4 h-4 absolute left-3.5 top-3.5 text-stone-500" />
                   <input
                     type="text"
                     required
@@ -1283,15 +1315,15 @@ export default function App() {
                       setFullName(e.target.value);
                       if (errors.fullName) setErrors((prev) => ({ ...prev, fullName: '' }));
                     }}
-                    className={`w-full pl-10 pr-3.5 py-3 text-sm rounded-xl border bg-slate-50/50 focus:bg-white focus:outline-hidden transition-all ${
+                    className={`w-full pl-10 pr-3.5 py-3 text-sm border-2 bg-white text-stone-900 focus:outline-hidden transition-all shadow-[2px_2px_0px_rgba(0,0,0,0.05)] ${
                       errors.fullName
-                        ? 'border-rose-400 focus:ring-2 focus:ring-rose-200'
-                        : 'border-slate-300 focus:border-[#1B365D] focus:ring-2 focus:ring-[#1B365D]/20'
+                        ? 'border-rose-500 focus:border-rose-600'
+                        : 'border-stone-400 focus:border-stone-900'
                     }`}
                   />
                 </div>
                 {errors.fullName && (
-                  <p className="text-xs text-rose-500 mt-1 flex items-center gap-1">
+                  <p className="text-xs text-rose-600 mt-1 flex items-center gap-1 font-mono">
                     <AlertCircle className="w-3 h-3" /> {errors.fullName}
                   </p>
                 )}
@@ -1299,11 +1331,11 @@ export default function App() {
 
               {/* Nomor WhatsApp */}
               <div className="sm:col-span-1" data-field="whatsappNumber">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Nomor WhatsApp <span className="text-rose-500">*</span>
+                <label className="block text-xs font-bold text-stone-800 uppercase tracking-wider mb-1.5 font-mono">
+                  Nomor WhatsApp <span className="text-[#C25E34]">*</span>
                 </label>
                 <div className="relative">
-                  <Phone className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
+                  <Phone className="w-4 h-4 absolute left-3.5 top-3.5 text-stone-500" />
                   <input
                     type="tel"
                     required
@@ -1313,15 +1345,15 @@ export default function App() {
                       setWhatsappNumber(e.target.value);
                       if (errors.whatsappNumber) setErrors((prev) => ({ ...prev, whatsappNumber: '' }));
                     }}
-                    className={`w-full pl-10 pr-3.5 py-3 text-sm rounded-xl border bg-slate-50/50 focus:bg-white focus:outline-hidden transition-all ${
+                    className={`w-full pl-10 pr-3.5 py-3 text-sm border-2 bg-white text-stone-900 focus:outline-hidden transition-all shadow-[2px_2px_0px_rgba(0,0,0,0.05)] ${
                       errors.whatsappNumber
-                        ? 'border-rose-400 focus:ring-2 focus:ring-rose-200'
-                        : 'border-slate-300 focus:border-[#1B365D] focus:ring-2 focus:ring-[#1B365D]/20'
+                        ? 'border-rose-500 focus:border-rose-600'
+                        : 'border-stone-400 focus:border-stone-900'
                     }`}
                   />
                 </div>
                 {errors.whatsappNumber && (
-                  <p className="text-xs text-rose-500 mt-1 flex items-center gap-1">
+                  <p className="text-xs text-rose-600 mt-1 flex items-center gap-1 font-mono">
                     <AlertCircle className="w-3 h-3" /> {errors.whatsappNumber}
                   </p>
                 )}
@@ -1329,15 +1361,15 @@ export default function App() {
 
               {/* Domisili / Kecamatan di Majalengka */}
               <div className="sm:col-span-1">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Domisili / Kecamatan di Majalengka <span className="text-rose-500">*</span>
+                <label className="block text-xs font-bold text-stone-800 uppercase tracking-wider mb-1.5 font-mono">
+                  Domisili / Kecamatan di Majalengka <span className="text-[#C25E34]">*</span>
                 </label>
                 <div className="relative">
-                  <Building2 className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
+                  <Building2 className="w-4 h-4 absolute left-3.5 top-3.5 text-stone-500" />
                   <select
                     value={kecamatan}
                     onChange={(e) => setKecamatan(e.target.value)}
-                    className="w-full pl-10 pr-8 py-3 text-sm rounded-xl border border-slate-300 bg-slate-50/50 focus:bg-white focus:outline-hidden focus:border-[#1B365D] focus:ring-2 focus:ring-[#1B365D]/20 text-slate-800 transition-all appearance-none cursor-pointer"
+                    className="w-full pl-10 pr-8 py-3 text-sm border-2 border-stone-400 bg-white focus:outline-hidden focus:border-stone-900 text-stone-900 transition-all appearance-none cursor-pointer shadow-[2px_2px_0px_rgba(0,0,0,0.05)]"
                   >
                     {KECAMATAN_MAJALENGKA.map((kec) => (
                       <option key={kec} value={kec}>
@@ -1345,7 +1377,7 @@ export default function App() {
                       </option>
                     ))}
                   </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500">
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-stone-700">
                     <svg className="w-4 h-4 fill-current" viewBox="0 0 20 20">
                       <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
                     </svg>
@@ -1355,11 +1387,11 @@ export default function App() {
 
               {/* Rekening / E-Wallet */}
               <div className="sm:col-span-1" data-field="bankAccount">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Rekening / E-Wallet & Provider <span className="text-rose-500">*</span>
+                <label className="block text-xs font-bold text-stone-800 uppercase tracking-wider mb-1.5 font-mono">
+                  Rekening / E-Wallet & Provider <span className="text-[#C25E34]">*</span>
                 </label>
                 <div className="relative">
-                  <Wallet className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
+                  <Wallet className="w-4 h-4 absolute left-3.5 top-3.5 text-stone-500" />
                   <input
                     type="text"
                     required
@@ -1369,19 +1401,19 @@ export default function App() {
                       setBankAccount(e.target.value);
                       if (errors.bankAccount) setErrors((prev) => ({ ...prev, bankAccount: '' }));
                     }}
-                    className={`w-full pl-10 pr-3.5 py-3 text-sm rounded-xl border bg-slate-50/50 focus:bg-white focus:outline-hidden transition-all ${
+                    className={`w-full pl-10 pr-3.5 py-3 text-sm border-2 bg-white text-stone-900 focus:outline-hidden transition-all shadow-[2px_2px_0px_rgba(0,0,0,0.05)] ${
                       errors.bankAccount
-                        ? 'border-rose-400 focus:ring-2 focus:ring-rose-200'
-                        : 'border-slate-300 focus:border-[#1B365D] focus:ring-2 focus:ring-[#1B365D]/20'
+                        ? 'border-rose-500 focus:border-rose-600'
+                        : 'border-stone-400 focus:border-stone-900'
                     }`}
                   />
                 </div>
                 {errors.bankAccount ? (
-                  <p className="text-xs text-rose-500 mt-1 flex items-center gap-1">
+                  <p className="text-xs text-rose-600 mt-1 flex items-center gap-1 font-mono">
                     <AlertCircle className="w-3 h-3" /> {errors.bankAccount}
                   </p>
                 ) : (
-                  <p className="text-[11px] text-slate-400 mt-1">
+                  <p className="text-[11px] text-stone-500 mt-1 font-serif-editorial italic">
                     Bisa Bank (BCA/BRI/Mandiri/BJB) atau E-Wallet (GoPay/DANA/ShopeePay)
                   </p>
                 )}
@@ -1392,18 +1424,18 @@ export default function App() {
           {/* SECTION 2: DETAIL BARANG */}
           <div 
             data-field="itemNameAndBrand"
-            className="bg-white rounded-3xl p-5 sm:p-7 border border-slate-200 shadow-xs transition-all hover:shadow-md"
+            className="bg-[#FAF7F2] border-2 border-stone-800 shadow-[4px_4px_0px_#1C1917] p-6 sm:p-8"
           >
-            <div className="flex items-center gap-3 pb-4 mb-5 border-b border-slate-100">
-              <div className="w-9 h-9 rounded-xl bg-[#1B365D] text-white flex items-center justify-center font-bold text-sm shadow-xs">
-                2
+            <div className="flex items-center gap-3 pb-4 mb-5 border-b-2 border-stone-800">
+              <div className="w-8 h-8 bg-stone-900 text-stone-50 border border-stone-800 flex items-center justify-center font-mono font-bold text-sm">
+                02
               </div>
               <div>
-                <h2 className="text-base sm:text-lg font-bold text-[#1B365D] flex items-center gap-2">
-                  <span>Detail Barang Titipan</span>
+                <h2 className="text-base sm:text-xl font-serif-editorial font-bold text-stone-950 uppercase tracking-tight">
+                  PASAL 02. SPESIFIKASI BARANG, KONDISI & HARGA NETT
                 </h2>
-                <p className="text-xs text-slate-400">
-                  Semakin spesifik informasi barang, semakin cepat pembeli tertarik
+                <p className="text-xs text-stone-600 font-serif-editorial italic">
+                  Semakin spesifik riwayat pemakaian & minus barang, semakin cepat pembeli percaya
                 </p>
               </div>
             </div>
@@ -1411,8 +1443,8 @@ export default function App() {
             <div className="space-y-4">
               {/* Kategori Barang */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                  Kategori Barang <span className="text-rose-500">*</span>
+                <label className="block text-xs font-bold text-stone-800 uppercase tracking-wider mb-2 font-mono">
+                  Kategori Barang <span className="text-[#C25E34]">*</span>
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                   {CATEGORIES.map((cat) => {
@@ -1422,18 +1454,18 @@ export default function App() {
                         key={cat.label}
                         type="button"
                         onClick={() => setCategory(cat.label)}
-                        className={`p-3 rounded-2xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                        className={`p-3 border-2 text-left flex flex-col justify-between transition-all cursor-pointer ${
                           isSelected
-                            ? 'bg-[#1B365D] border-[#1B365D] text-white shadow-sm ring-2 ring-[#1B365D]/30'
-                            : 'bg-slate-50/70 border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-white'
+                            ? 'bg-stone-900 border-stone-900 text-stone-50 shadow-[3px_3px_0px_#C25E34]'
+                            : 'bg-white border-stone-400 text-stone-800 hover:border-stone-800 hover:bg-[#FAF7F2] shadow-[2px_2px_0px_rgba(0,0,0,0.05)]'
                         }`}
                       >
-                        <span className="font-bold text-xs sm:text-sm block">
+                        <span className="font-bold text-xs sm:text-sm block font-mono">
                           {cat.label}
                         </span>
                         <span
                           className={`text-[10px] mt-1 line-clamp-2 ${
-                            isSelected ? 'text-slate-200' : 'text-slate-400'
+                            isSelected ? 'text-amber-200/90' : 'text-stone-500'
                           }`}
                         >
                           {cat.description}
@@ -1447,11 +1479,11 @@ export default function App() {
               {/* Nama & Merk Barang + Ukuran */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="sm:col-span-2">
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Nama & Merk Barang <span className="text-rose-500">*</span>
+                  <label className="block text-xs font-bold text-stone-800 uppercase tracking-wider mb-1.5 font-mono">
+                    Nama & Merk Barang <span className="text-[#C25E34]">*</span>
                   </label>
                   <div className="relative">
-                    <Tag className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
+                    <Tag className="w-4 h-4 absolute left-3.5 top-3.5 text-stone-500" />
                     <input
                       type="text"
                       required
@@ -1461,32 +1493,32 @@ export default function App() {
                         setItemNameAndBrand(e.target.value);
                         if (errors.itemNameAndBrand) setErrors((prev) => ({ ...prev, itemNameAndBrand: '' }));
                       }}
-                      className={`w-full pl-10 pr-3.5 py-3 text-sm rounded-xl border bg-slate-50/50 focus:bg-white focus:outline-hidden transition-all ${
+                      className={`w-full pl-10 pr-3.5 py-3 text-sm border-2 bg-white text-stone-900 focus:outline-hidden transition-all shadow-[2px_2px_0px_rgba(0,0,0,0.05)] ${
                         errors.itemNameAndBrand
-                          ? 'border-rose-400 focus:ring-2 focus:ring-rose-200'
-                          : 'border-slate-300 focus:border-[#1B365D] focus:ring-2 focus:ring-[#1B365D]/20'
+                          ? 'border-rose-500 focus:border-rose-600'
+                          : 'border-stone-400 focus:border-stone-900'
                       }`}
                     />
                   </div>
                   {errors.itemNameAndBrand && (
-                    <p className="text-xs text-rose-500 mt-1 flex items-center gap-1">
+                    <p className="text-xs text-rose-600 mt-1 flex items-center gap-1 font-mono">
                       <AlertCircle className="w-3 h-3" /> {errors.itemNameAndBrand}
                     </p>
                   )}
                 </div>
 
                 <div className="sm:col-span-1">
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Ukuran / Size <span className="text-slate-400 font-normal">(Contoh: M, 42, All Size)</span>
+                  <label className="block text-xs font-bold text-stone-800 uppercase tracking-wider mb-1.5 font-mono">
+                    Ukuran / Size <span className="text-stone-500 font-normal font-sans">(Contoh: M, 42, All Size)</span>
                   </label>
                   <div className="relative">
-                    <Ruler className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
+                    <Ruler className="w-4 h-4 absolute left-3.5 top-3.5 text-stone-500" />
                     <input
                       type="text"
                       placeholder="Contoh: L / 42 / All Size"
                       value={size}
                       onChange={(e) => setSize(e.target.value)}
-                      className="w-full pl-10 pr-3.5 py-3 text-sm rounded-xl border border-slate-300 bg-slate-50/50 focus:bg-white focus:outline-hidden focus:border-[#1B365D] focus:ring-2 focus:ring-[#1B365D]/20 transition-all"
+                      className="w-full pl-10 pr-3.5 py-3 text-sm border-2 border-stone-400 bg-white text-stone-900 focus:outline-hidden focus:border-stone-900 transition-all shadow-[2px_2px_0px_rgba(0,0,0,0.05)]"
                     />
                   </div>
                 </div>
@@ -1494,8 +1526,8 @@ export default function App() {
 
               {/* Kondisi Barang */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                  Kondisi Barang <span className="text-rose-500">*</span>
+                <label className="block text-xs font-bold text-stone-800 uppercase tracking-wider mb-2 font-mono">
+                  Kondisi Barang <span className="text-[#C25E34]">*</span>
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {CONDITIONS.map((cond) => {
@@ -1504,10 +1536,10 @@ export default function App() {
                       <div
                         key={cond.label}
                         onClick={() => setCondition(cond.label)}
-                        className={`p-3 rounded-2xl border cursor-pointer transition-all flex items-start gap-2.5 ${
+                        className={`p-3 border-2 cursor-pointer transition-all flex items-start gap-2.5 ${
                           isSelected
-                            ? 'bg-amber-50/50 border-amber-400 ring-2 ring-amber-400/20 shadow-2xs'
-                            : 'bg-slate-50/40 border-slate-200 hover:bg-white'
+                            ? 'bg-[#FAF7F2] border-stone-900 shadow-[3px_3px_0px_#1C1917]'
+                            : 'bg-white border-stone-400 hover:border-stone-800 hover:bg-[#FAF7F2] shadow-[2px_2px_0px_rgba(0,0,0,0.05)]'
                         }`}
                       >
                         <input
@@ -1515,15 +1547,15 @@ export default function App() {
                           name="item_condition"
                           checked={isSelected}
                           onChange={() => setCondition(cond.label)}
-                          className="mt-1 text-[#1B365D] focus:ring-[#1B365D]"
+                          className="mt-1 text-stone-900 focus:ring-stone-900"
                         />
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="text-xs sm:text-sm font-bold text-slate-800">
+                            <span className="text-xs sm:text-sm font-bold font-mono text-stone-950">
                               {cond.label}
                             </span>
                           </div>
-                          <p className="text-[11px] text-slate-500 mt-0.5 leading-normal">
+                          <p className="text-[11px] text-stone-600 mt-0.5 leading-normal">
                             {cond.description}
                           </p>
                         </div>
@@ -1535,8 +1567,8 @@ export default function App() {
 
               {/* Deskripsi & Detail Minus */}
               <div data-field="descriptionAndFlaws">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Deskripsi & Detail Minus <span className="text-rose-500">*</span>
+                <label className="block text-xs font-bold text-stone-800 uppercase tracking-wider mb-1.5 font-mono">
+                  Deskripsi & Detail Minus <span className="text-[#C25E34]">*</span>
                 </label>
                 <div className="relative">
                   <textarea
@@ -1548,15 +1580,15 @@ export default function App() {
                       setDescriptionAndFlaws(e.target.value);
                       if (errors.descriptionAndFlaws) setErrors((prev) => ({ ...prev, descriptionAndFlaws: '' }));
                     }}
-                    className={`w-full p-3 text-sm rounded-xl border bg-slate-50/50 focus:bg-white focus:outline-hidden transition-all ${
+                    className={`w-full p-3 text-sm border-2 bg-white text-stone-900 focus:outline-hidden transition-all shadow-[2px_2px_0px_rgba(0,0,0,0.05)] ${
                       errors.descriptionAndFlaws
-                        ? 'border-rose-400 focus:ring-2 focus:ring-rose-200'
-                        : 'border-slate-300 focus:border-[#1B365D] focus:ring-2 focus:ring-[#1B365D]/20'
+                        ? 'border-rose-500 focus:border-rose-600'
+                        : 'border-stone-400 focus:border-stone-900'
                     }`}
                   />
                 </div>
                 {errors.descriptionAndFlaws && (
-                  <p className="text-xs text-rose-500 mt-1 flex items-center gap-1">
+                  <p className="text-xs text-rose-600 mt-1 flex items-center gap-1 font-mono">
                     <AlertCircle className="w-3 h-3" /> {errors.descriptionAndFlaws}
                   </p>
                 )}
@@ -1564,69 +1596,69 @@ export default function App() {
 
               {/* Harga Bersih / Nett yang Diinginkan Penitip */}
               <div data-field="nettPrice" className="pt-2">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Harga Bersih / Nett yang Diinginkan Penitip (Rp) <span className="text-rose-500">*</span>
+                <label className="block text-xs font-bold text-stone-800 uppercase tracking-wider mb-1.5 font-mono">
+                  Harga Bersih / Nett yang Diinginkan Penitip (Rp) <span className="text-[#C25E34]">*</span>
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3.5 top-3.5 text-sm font-bold text-slate-500">
+                  <span className="absolute left-3.5 top-3.5 text-sm font-bold font-mono text-stone-600">
                     Rp
                   </span>
                   <input
                     type="text"
                     required
                     placeholder="Contoh: 350000"
-                    value={nettPriceRaw ? parseInt(nettPriceRaw, 10).toLocaleString('id-ID') : ''}
+                    value={nettPriceRaw ? parseRupiahInput(nettPriceRaw).toLocaleString('id-ID') : ''}
                     onChange={handlePriceChange}
-                    className={`w-full pl-12 pr-3.5 py-3.5 text-base sm:text-lg font-mono font-bold rounded-xl border bg-slate-50/50 focus:bg-white focus:outline-hidden transition-all ${
+                    className={`w-full pl-12 pr-3.5 py-3.5 text-base sm:text-lg font-mono font-bold border-2 bg-white focus:outline-hidden transition-all shadow-[2px_2px_0px_rgba(0,0,0,0.05)] ${
                       errors.nettPrice
-                        ? 'border-rose-400 focus:ring-2 focus:ring-rose-200'
-                        : 'border-slate-300 focus:border-[#1B365D] focus:ring-2 focus:ring-[#1B365D]/20 text-[#1B365D]'
+                        ? 'border-rose-500 focus:border-rose-600 text-rose-600'
+                        : 'border-stone-400 focus:border-stone-900 text-stone-900'
                     }`}
                   />
                 </div>
                 {errors.nettPrice && (
-                  <p className="text-xs text-rose-500 mt-1 flex items-center gap-1">
+                  <p className="text-xs text-rose-600 mt-1 flex items-center gap-1 font-mono">
                     <AlertCircle className="w-3 h-3" /> {errors.nettPrice}
                   </p>
                 )}
 
                 {/* Live Transparent Estimator Banner with 3-Tier Operational Rules */}
                 {parsedNettPrice > 0 && (
-                  <div className="mt-3 p-4 rounded-2xl bg-amber-50 border border-amber-300 space-y-3 animate-in fade-in duration-150">
+                  <div className="mt-3 p-4 bg-[#ECE5D8] border-2 border-stone-800 shadow-[3px_3px_0px_#1C1917] space-y-3 animate-in fade-in duration-150">
                     <div className="flex items-center justify-between flex-wrap gap-2">
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-200/70 border border-amber-300 text-amber-900 font-bold text-xs">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-stone-900 border border-stone-800 text-amber-200 font-mono font-bold text-xs">
                         <span>{priceEstimates.tierName}: {priceEstimates.rateDescription}</span>
                       </span>
 
-                      <span className="text-[11px] font-semibold text-slate-500">
+                      <span className="text-[11px] font-mono font-bold text-stone-700">
                         Biaya Jasa Titip: +{formatRupiah(priceEstimates.estimatedFee)}
                       </span>
                     </div>
 
                     <div className="flex items-center justify-between text-xs sm:text-sm pt-1">
-                      <span className="text-amber-950 font-semibold flex items-center gap-1.5">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="text-stone-950 font-bold flex items-center gap-1.5 font-serif-editorial">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
                         <span>Uang yang Anda Terima Penuh (Nett):</span>
                       </span>
-                      <span className="font-mono font-extrabold text-amber-950 text-base sm:text-lg">
+                      <span className="font-mono font-extrabold text-stone-950 text-base sm:text-lg">
                         {formatRupiah(parsedNettPrice)}
                       </span>
                     </div>
 
-                    <div className="flex items-center justify-between text-xs text-slate-600 pt-2 border-t border-amber-200/80">
-                      <span>Estimasi Harga Listing di info.barkasmajalengka:</span>
-                      <span className="font-bold text-slate-900 text-sm">
+                    <div className="flex items-center justify-between text-xs text-stone-700 pt-2 border-t border-stone-400">
+                      <span>Estimasi Harga Listing (Kelipatan 5rb):</span>
+                      <span className="font-mono font-bold text-stone-950 text-sm">
                         ± {formatRupiah(priceEstimates.suggestedListingPrice)}
                       </span>
                     </div>
 
                     {/* Operational Scheme Details */}
-                    <div className="p-2.5 bg-white/90 rounded-xl border border-amber-200/80 text-[11px] text-slate-600 space-y-1">
-                      <div className="flex items-center justify-between font-semibold text-slate-800">
+                    <div className="p-2.5 bg-white border border-stone-700 text-[11px] text-stone-700 space-y-1">
+                      <div className="flex items-center justify-between font-bold text-stone-900 font-mono">
                         <span>⏳ Batas Waktu Titip (Tenor):</span>
-                        <span className="text-[#1B365D]">Maksimal 30 Hari</span>
+                        <span className="text-[#C25E34]">Maksimal 30 Hari</span>
                       </div>
-                      <p className="text-[10.5px] text-slate-500 leading-relaxed">
+                      <p className="text-[10.5px] text-stone-600 leading-relaxed font-serif-editorial italic">
                         • Hari ke-20: Penawaran opsi turun harga (<em>price drop</em>) jika belum laku.<br />
                         • Hari ke-30: Barang dikembalikan atau diperpanjang dengan diskon khusus.
                       </p>
@@ -1640,18 +1672,18 @@ export default function App() {
           {/* SECTION 3: MEDIA & KETENTUAN */}
           <div 
             data-field="photos"
-            className="bg-white rounded-3xl p-5 sm:p-7 border border-slate-200 shadow-xs transition-all hover:shadow-md space-y-5"
+            className="bg-[#FAF7F2] border-2 border-stone-800 shadow-[4px_4px_0px_#1C1917] p-6 sm:p-8 space-y-5"
           >
-            <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
-              <div className="w-9 h-9 rounded-xl bg-[#1B365D] text-white flex items-center justify-center font-bold text-sm shadow-xs">
-                3
+            <div className="flex items-center gap-3 pb-4 mb-5 border-b-2 border-stone-800">
+              <div className="w-8 h-8 bg-stone-900 text-stone-50 border border-stone-800 flex items-center justify-center font-mono font-bold text-sm">
+                03
               </div>
               <div>
-                <h2 className="text-base sm:text-lg font-bold text-[#1B365D] flex items-center gap-2">
-                  <span>Foto Barang & Persetujuan</span>
+                <h2 className="text-base sm:text-xl font-serif-editorial font-bold text-stone-950 uppercase tracking-tight">
+                  PASAL 03. DOKUMENTASI FOTO ASLI & PERSETUJUAN
                 </h2>
-                <p className="text-xs text-slate-400">
-                  Minimal 1 foto jelas untuk bahan kurasi & display (maksimal 8 foto)
+                <p className="text-xs text-stone-600 font-serif-editorial italic">
+                  Foto asli fisik tanpa filter untuk bahan kurasi etalase & feed Instagram resmi
                 </p>
               </div>
             </div>
@@ -1674,29 +1706,29 @@ export default function App() {
 
             {/* Operational Quality Badges */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 text-xs">
-              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs shrink-0">✓</span>
-                <span className="text-slate-700 font-medium">Kondisi Bersih / Dicuci</span>
+              <div className="p-3 bg-white border border-stone-800 shadow-[2px_2px_0px_rgba(0,0,0,0.06)] flex items-center gap-2">
+                <span className="w-5 h-5 bg-stone-900 text-amber-300 flex items-center justify-center font-mono font-bold text-xs shrink-0 border border-stone-800">✓</span>
+                <span className="text-stone-900 font-bold font-mono">Kondisi Bersih / Dicuci</span>
               </div>
-              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs shrink-0">✓</span>
-                <span className="text-slate-700 font-medium">Hanya 100% Original</span>
+              <div className="p-3 bg-white border border-stone-800 shadow-[2px_2px_0px_rgba(0,0,0,0.06)] flex items-center gap-2">
+                <span className="w-5 h-5 bg-stone-900 text-amber-300 flex items-center justify-center font-mono font-bold text-xs shrink-0 border border-stone-800">✓</span>
+                <span className="text-stone-900 font-bold font-mono">Hanya 100% Original</span>
               </div>
-              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs shrink-0">30</span>
-                <span className="text-slate-700 font-medium">Masa Titip 30 Hari</span>
+              <div className="p-3 bg-white border border-stone-800 shadow-[2px_2px_0px_rgba(0,0,0,0.06)] flex items-center gap-2">
+                <span className="w-5 h-5 bg-stone-900 text-amber-300 flex items-center justify-center font-mono font-bold text-xs shrink-0 border border-stone-800">30</span>
+                <span className="text-stone-900 font-bold font-mono">Masa Titip 30 Hari</span>
               </div>
             </div>
 
             {/* Checkbox Persetujuan Aturan */}
             <div 
               data-field="agreement"
-              className={`p-4 rounded-2xl border transition-all ${
+              className={`p-4 border-2 transition-all ${
                 errors.agreement
-                  ? 'bg-rose-50 border-rose-300'
+                  ? 'bg-rose-50 border-rose-500 shadow-[3px_3px_0px_#E11D48]'
                   : agreementAccepted
-                  ? 'bg-emerald-50/50 border-emerald-300'
-                  : 'bg-slate-50 border-slate-200'
+                  ? 'bg-[#ECE5D8] border-stone-900 shadow-[3px_3px_0px_#1C1917]'
+                  : 'bg-white border-stone-400 shadow-[2px_2px_0px_rgba(0,0,0,0.05)]'
               }`}
             >
               <label className="flex items-start gap-3 cursor-pointer">
@@ -1707,14 +1739,14 @@ export default function App() {
                     setAgreementAccepted(e.target.checked);
                     if (errors.agreement) setErrors((prev) => ({ ...prev, agreement: '' }));
                   }}
-                  className="mt-1 w-4 h-4 rounded text-[#1B365D] focus:ring-[#1B365D] cursor-pointer"
+                  className="mt-1 w-4 h-4 border-2 border-stone-800 text-stone-900 focus:ring-stone-900 cursor-pointer"
                 />
-                <span className="text-xs sm:text-sm text-slate-700 leading-relaxed font-medium">
+                <span className="text-xs sm:text-sm text-stone-800 leading-relaxed font-serif-editorial">
                   "Saya menyetujui sistem operasional info.barkasmajalengka: barang dalam kondisi <strong>BERSIH (sudah dicuci)</strong>, <strong>100% ORIGINAL</strong>, bebas noda parah/kerusakan fungsi utama, serta menyetujui <strong>skema komisi & masa titip maksimal 30 hari</strong>."
                 </span>
               </label>
               {errors.agreement && (
-                <p className="text-xs text-rose-600 mt-2 font-semibold flex items-center gap-1">
+                <p className="text-xs text-rose-600 mt-2 font-mono font-bold flex items-center gap-1">
                   <AlertCircle className="w-3 h-3" /> {errors.agreement}
                 </p>
               )}
@@ -1726,22 +1758,22 @@ export default function App() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full py-4 px-6 rounded-2xl bg-[#1B365D] hover:bg-[#24477A] active:scale-[0.99] text-white font-extrabold text-base sm:text-lg shadow-xl shadow-[#1B365D]/25 transition-all flex items-center justify-center gap-2 group cursor-pointer disabled:opacity-60"
+              className="w-full py-4 px-6 bg-stone-900 hover:bg-stone-800 active:scale-[0.99] text-amber-200 font-serif-editorial font-bold text-base sm:text-lg border-2 border-stone-900 shadow-[4px_4px_0px_#C25E34] transition-all flex items-center justify-center gap-2 group cursor-pointer disabled:opacity-60 uppercase tracking-wider"
             >
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin text-amber-400" />
-                  <span>Sedang Mengirim Data...</span>
+                  <span>Sedang Menerbitkan Data...</span>
                 </>
               ) : (
                 <>
-                  <span>Kirim Data Titip Jual</span>
+                  <span>KIRIM PENGAJUAN TITIP JUAL RESMI</span>
                   <ArrowRight className="w-5 h-5 text-amber-400 group-hover:translate-x-1 transition-transform" />
                 </>
               )}
             </button>
-            <p className="text-[11px] text-center text-slate-400 mt-2">
-              Setelah tombol ditekan, Anda akan mendapatkan <strong>Kode Tiket Titip Jual</strong> dan tombol langsung ke WhatsApp <strong>Admin Esteh ({ADMIN_CONTACT.whatsappFormatted})</strong>.
+            <p className="text-[11px] text-center font-mono text-stone-600 mt-2">
+              Setelah dikirim, Kode Tiket Resmi akan langsung tercetak dan terhubung ke WhatsApp Admin Esteh ({ADMIN_CONTACT.whatsappFormatted}).
             </p>
           </div>
         </form>
@@ -1848,7 +1880,7 @@ export default function App() {
       <OfflineIndicator />
 
       {appToast && (
-        <div className="fixed bottom-5 right-5 z-50 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 text-xs border border-slate-700">
+        <div className="fixed bottom-5 right-5 z-50 bg-stone-900 text-amber-200 px-4 py-3 border-2 border-stone-900 shadow-[4px_4px_0px_#C25E34] flex items-center gap-2.5 text-xs font-mono font-bold">
           <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
           <span>{appToast}</span>
         </div>
