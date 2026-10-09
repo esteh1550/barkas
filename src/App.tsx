@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { User } from 'firebase/auth';
 import { 
   Send, 
@@ -57,6 +57,13 @@ import {
   triggerInstagramAutoPublish,
   syncInstagramAutoPostConfigWithCloud,
 } from './services/instagramAutomation';
+import {
+  triggerAdminPhoneAlertOnNewSubmission,
+  playAdminChimeSound,
+  vibrateAdminPhone,
+  showAdminBrowserNotification,
+  getAdminNotificationConfig,
+} from './services/adminNotificationService';
 import {
   saveSubmissionToFirebase,
   fetchSubmissionsFromServer,
@@ -256,6 +263,9 @@ export default function App() {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isSyncingGoogle, setIsSyncingGoogle] = useState(false);
   const [isFirebaseConnected, setIsFirebaseConnected] = useState<boolean>(false);
+  const [latestIncomingSubmission, setLatestIncomingSubmission] = useState<ConsignmentItem | null>(null);
+  const knownSubmissionIdsRef = useRef<Set<string>>(new Set());
+  const initialCloudLoadedRef = useRef<boolean>(false);
 
   const showAppToast = (msg: string) => {
     setAppToast(msg);
@@ -563,6 +573,33 @@ export default function App() {
           }
         }
 
+        // Realtime phone alert detection on Admin device
+        if (!initialCloudLoadedRef.current) {
+          initialCloudLoadedRef.current = true;
+          cloudItems.forEach((item) => knownSubmissionIdsRef.current.add(item.id));
+        } else {
+          // Check for newly arrived submissions (new ticket not previously in known list)
+          const brandNewItems = cloudItems.filter(
+            (item) => !knownSubmissionIdsRef.current.has(item.id) && item.status === 'Menunggu Kurasi'
+          );
+          cloudItems.forEach((item) => knownSubmissionIdsRef.current.add(item.id));
+
+          if (brandNewItems.length > 0) {
+            const newest = brandNewItems[0];
+            const notifCfg = getAdminNotificationConfig();
+            if (notifCfg.soundChimeEnabled) {
+              playAdminChimeSound();
+            }
+            if (notifCfg.vibrationEnabled) {
+              vibrateAdminPhone();
+            }
+            if (notifCfg.browserPushEnabled) {
+              showAdminBrowserNotification(newest);
+            }
+            setLatestIncomingSubmission(newest);
+          }
+        }
+
         saveSubmissions(cloudItems);
       },
       () => {
@@ -734,6 +771,11 @@ export default function App() {
       // Trigger Instagram Auto-Post if enabled on new submission
       triggerInstagramAutoPublish(newItem, 'new_submission').catch(() => {
         // ignore background webhook errors on public submission
+      });
+
+      // Trigger instant notification to Admin's HP (Telegram Bot & Webhook)
+      triggerAdminPhoneAlertOnNewSubmission(newItem).catch((notifErr) => {
+        console.warn('Background admin phone alert warning:', notifErr);
       });
 
       setSubmittedItem(newItem);
@@ -986,6 +1028,8 @@ export default function App() {
           setCurrentUser(null);
           setAccessToken(null);
         }}
+        latestIncomingSubmission={latestIncomingSubmission}
+        onDismissIncomingSubmission={() => setLatestIncomingSubmission(null)}
       />
     );
   }

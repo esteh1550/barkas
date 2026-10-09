@@ -32,7 +32,8 @@ import {
   PlusCircle,
   BarChart3,
   TrendingDown,
-  Instagram
+  Instagram,
+  BellRing
 } from 'lucide-react';
 import { ConsignmentItem, SubmissionStatus, AdminPostStatus, WantedRequest, WantedRequestStatus, ADMIN_CONTACT } from '../types/consignment';
 import { 
@@ -60,6 +61,8 @@ import { AdminQuickScannerModal } from '../components/AdminQuickScannerModal';
 import { AdminQRVerifyDetailModal } from '../components/AdminQRVerifyDetailModal';
 import { WantedStoryModal } from '../components/WantedStoryModal';
 import { InstagramAutoPostModal } from '../components/InstagramAutoPostModal';
+import { AdminPhoneNotificationModal } from '../components/AdminPhoneNotificationModal';
+import { IncomingSubmissionAlertBanner } from '../components/IncomingSubmissionAlertBanner';
 import { triggerInstagramAutoPublish } from '../services/instagramAutomation';
 
 interface AdminDashboardProps {
@@ -89,6 +92,8 @@ interface AdminDashboardProps {
   accessToken: string | null;
   onAuthSuccess: (user: User, token: string) => void;
   onLogoutGoogle: () => void;
+  latestIncomingSubmission?: ConsignmentItem | null;
+  onDismissIncomingSubmission?: () => void;
 }
 
 const ADMIN_PIN_STORAGE_KEY = 'barkas_admin_auth_session';
@@ -115,6 +120,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   accessToken,
   onAuthSuccess,
   onLogoutGoogle,
+  latestIncomingSubmission,
+  onDismissIncomingSubmission,
 }) => {
   // Authentication State
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
@@ -157,6 +164,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [wantedStoryRequest, setWantedStoryRequest] = useState<WantedRequest | null>(null);
   const [isWantedStoryModalOpen, setIsWantedStoryModalOpen] = useState(false);
   const [isIgAutoPostModalOpen, setIsIgAutoPostModalOpen] = useState(false);
+  const [isPhoneNotifModalOpen, setIsPhoneNotifModalOpen] = useState(false);
   const [deleteNotification, setDeleteNotification] = useState<string | null>(null);
   const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
 
@@ -594,6 +602,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
           <div className="flex items-center gap-2 flex-wrap">
             <PWAInstallButton />
+
+            {/* Notifikasi HP Admin Button */}
+            <button
+              type="button"
+              onClick={() => setIsPhoneNotifModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-[#1B365D] font-black text-xs shadow-xs transition-all cursor-pointer relative"
+              title="Atur Notifikasi HP Admin (Bel, Getar, Telegram & Webhook)"
+            >
+              <BellRing className="w-3.5 h-3.5" />
+              <span>Notif HP</span>
+            </button>
 
             {/* Financial Analytics Button */}
             <button
@@ -1714,6 +1733,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         accessToken={accessToken}
         onAuthSuccess={onAuthSuccess}
         onLogout={onLogoutGoogle}
+      />
+
+      {/* Realtime Incoming Submission Alert Banner on Admin Phone */}
+      {latestIncomingSubmission && onDismissIncomingSubmission && (
+        <IncomingSubmissionAlertBanner
+          item={latestIncomingSubmission}
+          onDismiss={onDismissIncomingSubmission}
+          onViewItem={(item) => setVerifyDetailItem(item)}
+        />
+      )}
+
+      {/* Admin Phone Notification Settings Modal */}
+      <AdminPhoneNotificationModal
+        isOpen={isPhoneNotifModalOpen}
+        onClose={() => setIsPhoneNotifModalOpen(false)}
+        onShowToast={showToast}
       />
     </div>
   );

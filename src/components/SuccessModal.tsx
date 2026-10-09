@@ -204,6 +204,19 @@ Rekening: ${item.bankAccount}`;
 
           {/* Download PDF & WhatsApp Primary Action Bar */}
           <div className="space-y-2">
+            {/* Instant Admin Notification Delivery Badge */}
+            <div className="p-3 bg-emerald-50 border-2 border-emerald-700/60 flex items-center gap-2.5 text-xs text-emerald-950 font-serif-editorial shadow-[2px_2px_0px_#064e3b]">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 animate-ping shrink-0" />
+              <div className="leading-tight">
+                <span className="font-bold block font-mono text-[11px] uppercase text-emerald-800">
+                  Notifikasi Otomatis Terkirim ke HP Admin
+                </span>
+                <span>
+                  Admin langsung menerima notifikasi barang titip baru Anda di HP. Ketuk tombol hijau di bawah untuk konfirmasi via WhatsApp:
+                </span>
+              </div>
+            </div>
+
             {/* WhatsApp Button */}
             <a
               href={waUrl}
